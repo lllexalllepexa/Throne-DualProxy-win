@@ -1,10 +1,13 @@
 # Throne (Formerly Nekoray)
 
+> ### 💡 Зачем вообще нужен этот форк? (Why this fork?)
+> Главная фича этого форка — **нативный режим «Dual Proxy»**: одновременный запуск двух независимых прокси-серверов на разных локальных портах (например, `2080` и `2081`) с назначением в 1 клик через контекстное меню, выбором портов прямо из UI, защитой от сбоев и раздельным отображением стран и соединений.
+>
+> 📖 **Подробное описание, сравнение с оригиналом и инструкция:** [**DUAL_PROXY.md**](DUAL_PROXY.md)
+
 Qt based Desktop cross-platform GUI proxy utility, empowered by [Sing-box](https://github.com/SagerNet/sing-box)
 
 Supports Windows 11/10/8/7 / Linux / MacOS out of the box.
-
-> **[Dual Proxy Mode Fork]**: This fork adds native support for running **two proxies simultaneously** on separate local ports (e.g., `2080` & `2081`) with 1-click UI selection, custom port assignment, connection listing, and independent status indicators. See [DUAL_PROXY.md](DUAL_PROXY.md) for details.
 
 <img width="1002" height="789" alt="image" src="https://github.com/user-attachments/assets/af4a8e32-7e55-430c-9402-ec2d665cf71a" />
 
