@@ -204,6 +204,12 @@ namespace Configs {
         QString inbound_user = "";
         QString inbound_pass = "";
 
+        // Secondary Inbound (Dual Proxy)
+        bool enable_secondary_inbound = false;
+        int secondary_inbound_port = 2081;
+        int secondary_profile_id = NoProfileId;
+        int primary_profile_id = NoProfileId;
+
         // Routing
         QString custom_route_global = "{\"rules\": []}";
         QString active_routing = "Default";

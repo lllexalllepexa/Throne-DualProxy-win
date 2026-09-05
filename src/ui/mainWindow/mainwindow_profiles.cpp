@@ -499,6 +499,14 @@ void MainWindow::on_menu_resolve_domain_triggered() {
 }
 
 void MainWindow::on_profilesTableView_customContextMenuRequested(const QPoint &pos) {
+    const auto selected = get_now_selected_list();
+    const bool singleSelected = (selected.size() == 1);
+    ui->action_set_secondary->setEnabled(singleSelected);
+    if (singleSelected) {
+        ui->action_set_secondary->setText(tr("Set as Secondary Proxy (%1)...").arg(Configs::dataManager->settingsRepo->secondary_inbound_port));
+    }
+    ui->action_change_secondary_port->setVisible(Configs::dataManager->settingsRepo->enable_secondary_inbound);
+    ui->action_clear_secondary->setVisible(Configs::dataManager->settingsRepo->enable_secondary_inbound);
     ui->menu_server->popup(ui->profilesTableView->viewport()->mapToGlobal(pos));
 }
 

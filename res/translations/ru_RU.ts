@@ -595,6 +595,10 @@ It stays a preference, not a lock: if that profile stops working the selector st
         <translation>Прослушиваемый порт</translation>
     </message>
     <message>
+        <source>Secondary Listen Port</source>
+        <translation>Порт второго прокси</translation>
+    </message>
+    <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Socks
                                                                 + HTTP Proxy&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
                                                             </source>
@@ -3659,6 +3663,42 @@ https://matsuridayo.github.io/n-configuration/#vpn-tun</translation>
         <translation>Выход</translation>
     </message>
     <message>
+        <source>Set as Secondary Proxy (%1)</source>
+        <translation>Сделать вторым прокси (%1)</translation>
+    </message>
+    <message>
+        <source>Set as Secondary Proxy (%1)...</source>
+        <translation>Сделать вторым прокси (%1)...</translation>
+    </message>
+    <message>
+        <source>Change Secondary Proxy Port...</source>
+        <translation>Изменить порт второго прокси...</translation>
+    </message>
+    <message>
+        <source>Secondary Proxy Port</source>
+        <translation>Порт второго прокси</translation>
+    </message>
+    <message>
+        <source>Listening port for secondary proxy (mixed SOCKS/HTTP):</source>
+        <translation>Порт для второго прокси (SOCKS5/HTTP):</translation>
+    </message>
+    <message>
+        <source>Port %1 is already in use by the primary proxy!</source>
+        <translation>Порт %1 уже используется основным прокси!</translation>
+    </message>
+    <message>
+        <source>Secondary Proxy</source>
+        <translation>Второй прокси</translation>
+    </message>
+    <message>
+        <source>This profile is currently active as the primary proxy. Please select a different profile.</source>
+        <translation>Этот профиль уже активен как основной прокси. Пожалуйста, выберите другой профиль.</translation>
+    </message>
+    <message>
+        <source>Clear Secondary Proxy</source>
+        <translation>Отключить второй прокси</translation>
+    </message>
+    <message>
         <source>Show Window</source>
         <translation>Показать окно</translation>
     </message>
@@ -4576,6 +4616,14 @@ Name: %1</source>
 </context>
 <context>
     <name>ProfilesTableModel</name>
+    <message>
+        <source>Active Secondary Proxy (Port %1)</source>
+        <translation>Активный второй прокси (Порт %1)</translation>
+    </message>
+    <message>
+        <source>Active Primary Proxy (Port %1)</source>
+        <translation>Активный основной прокси (Порт %1)</translation>
+    </message>
     <message>
         <source>This config&apos;s traffic is not properly protected.</source>
         <translation>Трафик этой конфигурации не защищен должным образом.</translation>

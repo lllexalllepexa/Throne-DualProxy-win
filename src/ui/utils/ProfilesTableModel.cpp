@@ -96,7 +96,10 @@ QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
 
     const int startedId = Configs::dataManager->settingsRepo->started_id;
     const bool isRunning = (profile->id == startedId);
+    const bool isSecondary = Configs::dataManager->settingsRepo->enable_secondary_inbound &&
+                             (profile->id == Configs::dataManager->settingsRepo->secondary_profile_id);
     QColor linkColor = isRunning ? QApplication::palette().link().color() : QColor();
+    QColor secondaryColor = isSecondary ? QColor(0, 180, 140) : QColor();
 
     if (role == Qt::DisplayRole) {
         switch (index.column()) {
@@ -110,13 +113,27 @@ QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
             return type;
         }
         case ColAddress: return profile->outbound ? profile->outbound->DisplayAddress() : QString();
-        case ColName: return profile->outbound ? profile->outbound->name : QString();
+        case ColName: {
+            QString name = profile->outbound ? profile->outbound->name : QString();
+            if (isSecondary) {
+                name = QStringLiteral("[2nd:%1] ").arg(Configs::dataManager->settingsRepo->secondary_inbound_port) + name;
+            } else if (isRunning && Configs::dataManager->settingsRepo->enable_secondary_inbound) {
+                name = QStringLiteral("[1st:%1] ").arg(Configs::dataManager->settingsRepo->inbound_socks_port) + name;
+            }
+            return name;
+        }
         case ColTestResult: return profile->DisplayTestResult();
         case ColTraffic: return profile->DisplayTraffic();
         default: return {};
         }
     }
     if (role == Qt::ToolTipRole) {
+        if (isSecondary) {
+            return tr("Active Secondary Proxy (Port %1)").arg(Configs::dataManager->settingsRepo->secondary_inbound_port);
+        }
+        if (isRunning && Configs::dataManager->settingsRepo->enable_secondary_inbound) {
+            return tr("Active Primary Proxy (Port %1)").arg(Configs::dataManager->settingsRepo->inbound_socks_port);
+        }
         if (index.column() == ColType && Configs::dataManager->settingsRepo->show_config_security
             && profile->outbound && profile->outbound->GetSecurity().isDangerous()) {
             return tr("This config's traffic is not properly protected.");
@@ -129,6 +146,7 @@ QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
             if (latencyColor.isValid()) return latencyColor;
         }
         if (isRunning && linkColor.isValid()) return linkColor;
+        if (isSecondary && secondaryColor.isValid()) return secondaryColor;
         return {};
     }
     return {};

@@ -57,6 +57,7 @@ namespace Configs {
 
             constexpr auto dnsIn = "dns-in";
             constexpr auto mixedIn = "mixed-in";
+            constexpr auto secondaryIn = "secondary-in";
             constexpr auto tunIn = "tun-in";
             constexpr auto redirectIn = "hijack";
             constexpr auto dnsServerIn = "hijack-dns";
@@ -66,6 +67,7 @@ namespace Configs {
 
             constexpr auto mainChainPrefix = "config";
             constexpr auto routeChainPrefix = "route";
+            constexpr auto secondaryChainPrefix = "secondary";
             constexpr auto auxEndpointPrefix = "aux";
             constexpr auto poolChainPrefix = "pool";
             constexpr auto testChainPrefix = "proxy";
@@ -551,6 +553,13 @@ namespace Configs {
                     if (usesXrayCore(neededEnt)) ctx.proxyUsesXray = true;
                     preReqs.routing.outboundMap[item] = hopTag(tags::routeChainPrefix, suffix++);
                     preReqs.routing.routeOutboundGroups << RoutingDeps::RouteOutboundGroup{QList<int>{item}, nullptr};
+                }
+            }
+
+            if (!ctx.forTest && settings.enable_secondary_inbound && settings.secondary_profile_id >= 0) {
+                auto secEnt = dataManager->profilesRepo->GetProfile(settings.secondary_profile_id);
+                if (secEnt != nullptr && proxyPathUsesXray(secEnt)) {
+                    ctx.proxyUsesXray = true;
                 }
             }
 
@@ -1078,6 +1087,23 @@ namespace Configs {
                     };
                 }
                 inbounds += inboundObj;
+            }
+
+            if (settings.enable_secondary_inbound && settings.secondary_profile_id >= 0) {
+                QJsonObject secInboundObj;
+                secInboundObj["tag"] = tags::secondaryIn;
+                secInboundObj["type"] = "mixed";
+                secInboundObj["listen"] = settings.inbound_address;
+                secInboundObj["listen_port"] = settings.secondary_inbound_port;
+                if (settings.inbound_auth) {
+                    secInboundObj["users"] = QJsonArray{
+                        QJsonObject{
+                            {"username", settings.inbound_user},
+                            {"password", settings.inbound_pass}
+                        }
+                    };
+                }
+                inbounds += secInboundObj;
             }
 
             if (settings.spmode_vpn) {
@@ -1811,6 +1837,31 @@ namespace Configs {
                 }
             }
 
+            const auto &settings = *dataManager->settingsRepo;
+            if (!ctx.forTest && settings.enable_secondary_inbound && settings.secondary_profile_id >= 0) {
+                auto secEnt = dataManager->profilesRepo->GetProfile(settings.secondary_profile_id);
+                if (secEnt != nullptr) {
+                    QList<int> secEntIDs;
+                    if (secEnt->type == "chain") {
+                        auto chain = secEnt->Chain();
+                        if (chain != nullptr) {
+                            secEntIDs.reserve(chain->list.size());
+                            std::copy(chain->list.crbegin(), chain->list.crend(), std::back_inserter(secEntIDs));
+                        }
+                    } else {
+                        secEntIDs.append(secEnt->id);
+                    }
+                    buildOutboundChain(ctx, {
+                        .hopIDs = secEntIDs,
+                        .prefix = tags::secondaryChainPrefix,
+                        .includeProxy = false,
+                        .link = secEntIDs.size() > 1,
+                        .startSuffix = 0,
+                    });
+                    if (!ctx.error.isEmpty()) return;
+                }
+            }
+
             if (auto mismatch = bridgeIngressMismatch(ctx); !mismatch.isEmpty()) {
                 ctx.error = mismatch;
                 return;
@@ -1922,8 +1973,12 @@ namespace Configs {
             if (!routeChain->isRaw) {
                 injected.sniff = QJsonObject{{"action", "sniff"}};
                 if (!settings.resolve_domain_strategy.isEmpty()) {
+                    QJsonArray resolveInbounds{tags::mixedIn, tags::tunIn};
+                    if (settings.enable_secondary_inbound && settings.secondary_profile_id >= 0) {
+                        resolveInbounds.append(tags::secondaryIn);
+                    }
                     injected.resolve = QJsonObject{
-                        {"inbound", QJsonArray{tags::mixedIn, tags::tunIn}},
+                        {"inbound", resolveInbounds},
                         {"action", "resolve"},
                         {"strategy", settings.resolve_domain_strategy},
                     };
@@ -1950,6 +2005,14 @@ namespace Configs {
             auto profileRules = routeChain->isRaw ? rawRouteObj.value("rules").toArray()
                                                   : routeChain->get_route_rules(false, routeDeps.outboundMap);
             if (ctx.l3Bridge) profileRules = withL3BridgeTwins(profileRules);
+
+            if (!ctx.forTest && settings.enable_secondary_inbound && settings.secondary_profile_id >= 0) {
+                profileRules.prepend(QJsonObject{
+                    {"inbound", QJsonArray{tags::secondaryIn}},
+                    {"action", "route"},
+                    {"outbound", hopTag(tags::secondaryChainPrefix, 0)},
+                });
+            }
 
             QJsonObject extraCoreDirect;
             if (!ctx.result->extraCoreData->path.isEmpty())
@@ -2069,19 +2132,24 @@ namespace Configs {
             const auto &settings = *dataManager->settingsRepo;
 
             QJsonObject experimentalObj;
-            // Only the yacd listener now; the stats tracker comes from buildServicesSection.
+            QJsonObject clash_api = {
+                {"default_mode", ""} // dummy to make sure it is created
+            };
             if (settings.core_box_clash_api > 0) {
-                experimentalObj["clash_api"] = QJsonObject{
+                clash_api = {
                     {"external_controller", settings.core_box_clash_listen_addr + ":" + Int2String(settings.core_box_clash_api)},
                     {"secret", settings.core_box_clash_api_secret},
                     {"external_ui", "dashboard"},
                 };
             }
+            if (settings.core_box_clash_api > 0 || settings.enable_stats) {
+                experimentalObj["clash_api"] = clash_api;
+            }
 
             experimentalObj["cache_file"] = QJsonObject{
                 {"enabled", true},
                 {"store_fakeip", true},
-                {"store_dns", true}
+                {"store_rdrc", true}
             };
 
             ctx.result->coreConfig["experimental"] = experimentalObj;
@@ -2089,32 +2157,9 @@ namespace Configs {
 
         // ------------------------------------------------------------- services
 
-        // The core builds the traffic tracker from the mere presence of an api service.
         void buildServicesSection(BuildContext &ctx) {
-            if (ctx.forTest) return;
-            const auto &settings = *dataManager->settingsRepo;
-
-            const bool dashboard = settings.core_box_api_port > 0;
-            if (!dashboard && !settings.enable_stats) return;
-
-            QJsonObject api = {
-                {"type", "api"},
-                {"listen", "127.0.0.1"},
-                {"listen_port", dashboard ? settings.core_box_api_port : 0},
-                {"secret", settings.core_box_api_secret},
-            };
-            if (dashboard) {
-                // Defaults to "*", i.e. any page the user visits could reach loopback.
-                api["access_control_allow_origin"] = QJsonArray{
-                    "http://127.0.0.1:" + Int2String(settings.core_box_api_port)
-                };
-                api["dashboard"] = QJsonObject{
-                    {"enabled", true},
-                    {"path", apiDashboardDir},
-                };
-            }
-
-            ctx.result->coreConfig["services"] = QJsonArray{api};
+            // Disabled: sing-box core does not recognize "services" inbound array of type "api".
+            Q_UNUSED(ctx);
         }
 
         // ----------------------------------------------------------------- xray

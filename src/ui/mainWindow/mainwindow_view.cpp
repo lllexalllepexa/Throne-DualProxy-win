@@ -147,9 +147,23 @@ void MainWindow::refresh_status(const QString &traffic_update) {
     if (QDateTime::currentSecsSinceEpoch() - last_test_time > 2) {
         QString runningLabelText;
         if (running) {
-            runningLabelText = QString("[%1] %2").arg(group_name, running->outbound->DisplayName());
-            if (!runningDetail.isEmpty()) {
-                runningLabelText += "\n" + runningDetail;
+            if (settings->enable_secondary_inbound && settings->secondary_profile_id >= 0) {
+                runningLabelText = QString("1st: [%1] %2").arg(group_name, running->outbound->DisplayName());
+                if (!runningDetail.isEmpty()) {
+                    runningLabelText += "\n" + runningDetail;
+                }
+                auto secProf = Configs::dataManager->profilesRepo->GetProfile(settings->secondary_profile_id);
+                if (secProf && secProf->outbound) {
+                    runningLabelText += QString("\n2nd: %1").arg(secProf->outbound->DisplayName());
+                    if (!secProf->runningCountryInfo.isEmpty()) {
+                        runningLabelText += " (" + secProf->runningCountryInfo + ")";
+                    }
+                }
+            } else {
+                runningLabelText = QString("[%1] %2").arg(group_name, running->outbound->DisplayName());
+                if (!runningDetail.isEmpty()) {
+                    runningLabelText += "\n" + runningDetail;
+                }
             }
         } else {
             runningLabelText = tr("Not Running");
@@ -166,7 +180,15 @@ void MainWindow::refresh_status(const QString &traffic_update) {
             display_socks = DisplayAddress(lan, settings->inbound_socks_port);
         }
     }
-    ui->label_inbound->setText(QString("Mixed: %1").arg(inbound_disabled ? "Disabled" : display_socks));
+    QString mixedText = QString("Mixed: %1").arg(inbound_disabled ? "Disabled" : display_socks);
+    if (!inbound_disabled && settings->enable_secondary_inbound && settings->secondary_profile_id >= 0) {
+        mixedText += QString(" | 2nd: %1").arg(settings->secondary_inbound_port);
+        auto secProf = Configs::dataManager->profilesRepo->GetProfile(settings->secondary_profile_id);
+        if (secProf && secProf->outbound) {
+            inbound_tip += (inbound_tip.isEmpty() ? "" : "\n") + QString("2nd Proxy (port %1): %2").arg(QString::number(settings->secondary_inbound_port), secProf->outbound->DisplayTypeAndName());
+        }
+    }
+    ui->label_inbound->setText(mixedText);
     ui->label_inbound->setToolTip(inbound_tip);
     syncConnectionSourceColumn();
     ui->checkBox_VPN->setChecked(settings->spmode_vpn);

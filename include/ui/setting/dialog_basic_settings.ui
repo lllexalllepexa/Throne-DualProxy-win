@@ -168,10 +168,27 @@
             </property>
            </widget>
           </item>
-          <item row="1" column="2">
-           <widget class="QLineEdit" name="inbound_address"/>
-          </item>
-         </layout>
+           <item row="1" column="2">
+            <widget class="QLineEdit" name="inbound_address"/>
+           </item>
+           <item row="5" column="3">
+            <widget class="QLabel" name="secondary_inbound_port_l">
+             <property name="text">
+              <string>Secondary Listen Port</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="4">
+            <widget class="QLineEdit" name="secondary_inbound_port">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+            </widget>
+           </item>
+          </layout>
         </widget>
        </item>
        <item>

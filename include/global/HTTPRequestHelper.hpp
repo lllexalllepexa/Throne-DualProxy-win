@@ -27,7 +27,7 @@ namespace Configs_network {
 
     public:
         // maxBytes > 0 aborts the transfer once the body exceeds it and reports an error.
-        static HTTPResponse HttpGet(const QString &url, bool sendHwid = false, bool useProxy = false, qint64 maxBytes = 0);
+        static HTTPResponse HttpGet(const QString &url, bool sendHwid = false, bool useProxy = false, qint64 maxBytes = 0, int customPort = -1);
 
         static QString GetHeader(const QList<QPair<QByteArray, QByteArray>> &header, const QString &name);
 

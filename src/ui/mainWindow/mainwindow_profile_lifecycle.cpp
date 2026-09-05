@@ -73,6 +73,10 @@ int MainWindow::get_profile_to_start() {
         return ents.first();
     }
     if (ents.isEmpty()) {
+        const int primaryId = Configs::dataManager->settingsRepo->primary_profile_id;
+        if (primaryId >= 0 && Configs::dataManager->profilesRepo->GetProfile(primaryId) != nullptr) {
+            return primaryId;
+        }
         if (last_running_profile_id >= 0 && Configs::dataManager->profilesRepo->GetProfile(last_running_profile_id) != nullptr) {
             return last_running_profile_id;
         }
@@ -84,6 +88,14 @@ int MainWindow::get_profile_to_start() {
         if (currentGroup) {
             const auto profiles = currentGroup->Profiles();
             if (!profiles.isEmpty()) {
+                const int secId = Configs::dataManager->settingsRepo->enable_secondary_inbound
+                                      ? Configs::dataManager->settingsRepo->secondary_profile_id
+                                      : -1;
+                for (int pid : profiles) {
+                    if (pid != secId && Configs::dataManager->profilesRepo->GetProfile(pid) != nullptr) {
+                        return pid;
+                    }
+                }
                 const int firstId = profiles.first();
                 if (Configs::dataManager->profilesRepo->GetProfile(firstId) != nullptr) {
                     return firstId;
@@ -193,7 +205,15 @@ void MainWindow::profile_start(int _id) {
     }
     if (ent == nullptr) return;
 
+    // If starting the profile that was set as secondary, clear secondary to avoid conflict
+    if (Configs::dataManager->settingsRepo->secondary_profile_id == ent->id) {
+        Configs::dataManager->settingsRepo->enable_secondary_inbound = false;
+        Configs::dataManager->settingsRepo->secondary_profile_id = -1;
+    }
+
     last_running_profile_id = ent->id;
+    Configs::dataManager->settingsRepo->primary_profile_id = ent->id;
+    Configs::dataManager->settingsRepo->Save();
 
     if (select_mode) {
         emit profile_selected(ent->id);
@@ -355,6 +375,31 @@ void MainWindow::profile_start(int _id) {
                     refresh_status();
                 }
             }
+
+            if (Configs::dataManager->settingsRepo->enable_secondary_inbound &&
+                Configs::dataManager->settingsRepo->secondary_profile_id >= 0) {
+                runOnNewThread([=, this] {
+                    auto secResp = NetworkRequestHelper::HttpGet(
+                        "http://ip-api.com/json/", false, true, 0,
+                        Configs::dataManager->settingsRepo->secondary_inbound_port);
+                    if (secResp.error.isEmpty()) {
+                        QJsonDocument sDoc = QJsonDocument::fromJson(secResp.data);
+                        if (sDoc.isObject()) {
+                            QJsonObject sObj = sDoc.object();
+                            QString sCity = sObj["city"].toString();
+                            QString sCountryName = sObj["country"].toString();
+                            QString sCountryCode = sObj["countryCode"].toString();
+                            auto secProf = Configs::dataManager->profilesRepo->GetProfile(
+                                Configs::dataManager->settingsRepo->secondary_profile_id);
+                            if (secProf) {
+                                secProf->runningCountryInfo = QString("%1 %2, %3").arg(
+                                    CountryCodeToFlag(sCountryCode), sCountryName, sCity);
+                                runOnUiThread([this] { refresh_status(); });
+                            }
+                        }
+                    }
+                });
+            }
         });
 
         return true;
@@ -508,14 +553,8 @@ void MainWindow::profile_stop(bool crash, bool block, bool manual) {
 }
 
 void MainWindow::start_vpn_challenge_poll() {
-    if (m_vpnChallengeTimer == nullptr) {
-        m_vpnChallengeTimer = new QTimer(this);
-        // Servers park a challenge on a short timer, so the prompt has to reach the user well inside it.
-        m_vpnChallengeTimer->setInterval(2000);
-        connect(m_vpnChallengeTimer, &QTimer::timeout, this, [this] { poll_vpn_challenges(); });
-    }
-    reset_vpn_endpoint_tracking();
-    m_vpnChallengeTimer->start();
+    // Disabled: QueryVPNStatus is unimplemented in public ThroneCore releases and spams unknown method errors.
+    return;
 }
 
 void MainWindow::stop_vpn_challenge_poll() {

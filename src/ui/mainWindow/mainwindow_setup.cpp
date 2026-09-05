@@ -5,6 +5,7 @@
 #include "include/ui/mainWindow/TestRunner.h"
 
 #include <QMenu>
+#include <QInputDialog>
 
 #include "include/configs/sub/GroupUpdater.hpp"
 #include "include/configs/sub/RouteUpdater.hpp"
@@ -156,6 +157,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     loadShortcuts();
 
     last_running_profile_id = Configs::dataManager->settingsRepo->remember_id;
+    if (last_running_profile_id < 0) {
+        last_running_profile_id = Configs::dataManager->settingsRepo->primary_profile_id;
+    }
 
     if (!Configs::dataManager->settingsRepo->mainWindowGeometry.isEmpty()) {
         auto geo = DecodeB64IfValid(Configs::dataManager->settingsRepo->mainWindowGeometry);
@@ -264,6 +268,96 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->menu_start->setShortcuts({QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter)});
     connect(ui->menu_start, &QAction::triggered, this, [=,this]() { profile_start(); });
     connect(ui->menu_stop, &QAction::triggered, this, [=,this]() { profile_stop(false, false, true); });
+    connect(ui->action_set_secondary, &QAction::triggered, this, [=, this]() {
+        const auto selected = get_now_selected_list();
+        if (selected.size() != 1) return;
+        const int newId = selected.first();
+
+        // Prevent setting current primary profile as secondary
+        if ((running != nullptr && running->id == newId) ||
+            (Configs::dataManager->settingsRepo->primary_profile_id == newId && running != nullptr)) {
+            MessageBoxWarning(tr("Secondary Proxy"), tr("This profile is currently active as the primary proxy. Please select a different profile."));
+            return;
+        }
+
+        int currentPort = Configs::dataManager->settingsRepo->secondary_inbound_port;
+        if (currentPort <= 0) currentPort = 2081;
+        bool ok = false;
+        int port = QInputDialog::getInt(
+            this,
+            tr("Secondary Proxy Port"),
+            tr("Listening port for secondary proxy (mixed SOCKS/HTTP):"),
+            currentPort,
+            1024,
+            65535,
+            1,
+            &ok
+        );
+        if (!ok) return;
+
+        if (port == Configs::dataManager->settingsRepo->inbound_socks_port) {
+            MessageBoxWarning(tr("Error"), tr("Port %1 is already in use by the primary proxy!").arg(port));
+            return;
+        }
+
+        const int oldId = Configs::dataManager->settingsRepo->secondary_profile_id;
+        Configs::dataManager->settingsRepo->secondary_inbound_port = port;
+        Configs::dataManager->settingsRepo->secondary_profile_id = newId;
+        Configs::dataManager->settingsRepo->enable_secondary_inbound = true;
+        Configs::dataManager->settingsRepo->Save();
+        if (profilesTableModel) {
+            if (oldId >= 0) profilesTableModel->refreshProfileId(oldId);
+            profilesTableModel->refreshProfileId(newId);
+        }
+        refresh_status();
+        if (running != nullptr) {
+            profile_start(running->id);
+        }
+    });
+    connect(ui->action_change_secondary_port, &QAction::triggered, this, [=, this]() {
+        int currentPort = Configs::dataManager->settingsRepo->secondary_inbound_port;
+        if (currentPort <= 0) currentPort = 2081;
+        bool ok = false;
+        int port = QInputDialog::getInt(
+            this,
+            tr("Secondary Proxy Port"),
+            tr("Listening port for secondary proxy (mixed SOCKS/HTTP):"),
+            currentPort,
+            1024,
+            65535,
+            1,
+            &ok
+        );
+        if (!ok) return;
+
+        if (port == Configs::dataManager->settingsRepo->inbound_socks_port) {
+            MessageBoxWarning(tr("Error"), tr("Port %1 is already in use by the primary proxy!").arg(port));
+            return;
+        }
+
+        Configs::dataManager->settingsRepo->secondary_inbound_port = port;
+        Configs::dataManager->settingsRepo->Save();
+        if (profilesTableModel && Configs::dataManager->settingsRepo->secondary_profile_id >= 0) {
+            profilesTableModel->refreshProfileId(Configs::dataManager->settingsRepo->secondary_profile_id);
+        }
+        refresh_status();
+        if (running != nullptr && Configs::dataManager->settingsRepo->enable_secondary_inbound) {
+            profile_start(running->id);
+        }
+    });
+    connect(ui->action_clear_secondary, &QAction::triggered, this, [=, this]() {
+        const int oldId = Configs::dataManager->settingsRepo->secondary_profile_id;
+        Configs::dataManager->settingsRepo->enable_secondary_inbound = false;
+        Configs::dataManager->settingsRepo->secondary_profile_id = -1;
+        Configs::dataManager->settingsRepo->Save();
+        if (profilesTableModel && oldId >= 0) {
+            profilesTableModel->refreshProfileId(oldId);
+        }
+        refresh_status();
+        if (running != nullptr) {
+            profile_start(running->id);
+        }
+    });
     connect(ui->toolButton_startstop, &QAbstractButton::clicked, this, [=,this]() {
         // The button is disabled while Connecting, so a click is stop-running or start-selected.
         if (running != nullptr) profile_stop(false, false, true);
@@ -679,6 +773,20 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             [this](bool selectFirst) { focusProfilesTable(selectFirst); });
 
     this->refresh_groups();
+
+    int initialProfileId = Configs::dataManager->settingsRepo->primary_profile_id;
+    if (initialProfileId < 0) {
+        initialProfileId = last_running_profile_id;
+    }
+    if (initialProfileId >= 0 && profilesTableModel && profilesFilterModel) {
+        int srcRow = profilesTableModel->indexOfProfile(initialProfileId);
+        if (srcRow >= 0) {
+            int proxyRow = profilesFilterModel->toProxyRow(srcRow);
+            if (proxyRow >= 0) {
+                selectProfileRows({proxyRow});
+            }
+        }
+    }
 
     tray = new QSystemTrayIcon(nullptr);
     tray->setIcon(Icon::GetTrayIcon(Icon::TrayIconStatus::None));

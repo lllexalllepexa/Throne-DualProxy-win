@@ -4,6 +4,8 @@ Qt based Desktop cross-platform GUI proxy utility, empowered by [Sing-box](https
 
 Supports Windows 11/10/8/7 / Linux / MacOS out of the box.
 
+> **[Dual Proxy Mode Fork]**: This fork adds native support for running **two proxies simultaneously** on separate local ports (e.g., `2080` & `2081`) with 1-click UI selection, custom port assignment, connection listing, and independent status indicators. See [DUAL_PROXY.md](DUAL_PROXY.md) for details.
+
 <img width="1002" height="789" alt="image" src="https://github.com/user-attachments/assets/af4a8e32-7e55-430c-9402-ec2d665cf71a" />
 
 ### Note on MacOS releases

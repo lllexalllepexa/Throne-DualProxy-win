@@ -52,6 +52,7 @@ DialogBasicSettings::DialogBasicSettings(QWidget *parent)
     D_LOAD_STRING(inbound_address)
     CACHE.custom_inbound = Configs::dataManager->settingsRepo->custom_inbound;
     D_LOAD_INT(inbound_socks_port)
+    D_LOAD_INT(secondary_inbound_port)
     ui->random_listen_port->setChecked(Configs::dataManager->settingsRepo->random_inbound_port);
     D_LOAD_INT(test_concurrent)
     D_LOAD_STRING(test_latency_url)
@@ -337,6 +338,7 @@ void DialogBasicSettings::accept() {
     D_SAVE_STRING(inbound_address)
     Configs::dataManager->settingsRepo->custom_inbound = CACHE.custom_inbound;
     D_SAVE_INT(inbound_socks_port)
+    D_SAVE_INT(secondary_inbound_port)
     if (!Configs::dataManager->settingsRepo->random_inbound_port && ui->random_listen_port->isChecked())
     {
         needChoosePort = true;

@@ -18,7 +18,7 @@
 
 namespace Configs_network {
 
-    HTTPResponse NetworkRequestHelper::HttpGet(const QString &url, bool sendHwid, bool useProxy, qint64 maxBytes) {
+    HTTPResponse NetworkRequestHelper::HttpGet(const QString &url, bool sendHwid, bool useProxy, qint64 maxBytes, int customPort) {
         QNetworkRequest request;
         QNetworkAccessManager accessManager;
         accessManager.setTransferTimeout(10000);
@@ -30,7 +30,7 @@ namespace Configs_network {
             QNetworkProxy p;
             p.setType(QNetworkProxy::HttpProxy);
             p.setHostName(Configs::dataManager->settingsRepo->inbound_address == "::" ? "127.0.0.1" : Configs::dataManager->settingsRepo->inbound_address);
-            p.setPort(Configs::dataManager->settingsRepo->inbound_socks_port);
+            p.setPort(customPort > 0 ? customPort : Configs::dataManager->settingsRepo->inbound_socks_port);
             if (Configs::dataManager->settingsRepo->inbound_auth) {
                 p.setUser(Configs::dataManager->settingsRepo->inbound_user);
                 p.setPassword(Configs::dataManager->settingsRepo->inbound_pass);

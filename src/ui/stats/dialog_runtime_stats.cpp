@@ -169,7 +169,7 @@ void DialogRuntimeStats::refreshLive() {
             int tcp = 0, udp = 0, total = 0;
             for (const auto& c : conns.active) {
                 ++total;
-                const QString net = QString::fromStdString(c.network.value());
+                const QString net = QString::fromStdString(c.network.value_or(""));
                 if (net == QStringLiteral("tcp")) ++tcp;
                 else if (net == QStringLiteral("udp")) ++udp;
             }

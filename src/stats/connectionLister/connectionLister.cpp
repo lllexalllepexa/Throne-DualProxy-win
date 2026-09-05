@@ -49,7 +49,12 @@ namespace Stats
             if (!forced && (suspend || !Configs::dataManager->settingsRepo->enable_stats)) continue;
 
             mu.lock();
-            update(forced || inView_.load());
+            try {
+                update(forced || inView_.load());
+            } catch (const std::exception& e) {
+                // Ignore exception to keep the loop alive
+            } catch (...) {
+            }
             mu.unlock();
         }
     }
@@ -79,19 +84,19 @@ namespace Stats
     static ConnectionMetadata metaFromProto(const libcore::ConnectionMetaData& conn, const QString& localLabel)
     {
         ConnectionMetadata c;
-        c.id = QString::fromStdString(conn.id.value());
-        c.createdAtMs = conn.created_at.value();
-        c.dest = QString::fromStdString(conn.dest.value());
-        c.upload = conn.upload.value();
-        c.download = conn.download.value();
-        c.domain = QString::fromStdString(conn.domain.value());
-        c.network = QString::fromStdString(conn.network.value());
-        c.outbound = QString::fromStdString(conn.outbound.value());
-        c.process = QString::fromStdString(conn.process.value());
-        c.processPath = QString::fromStdString(conn.process_path.value());
-        c.protocol = QString::fromStdString(conn.protocol.value());
-        c.closedAtMs = conn.closed_at.value();
-        c.source = QString::fromStdString(conn.source.value());
+        c.id = QString::fromStdString(conn.id.value_or(""));
+        c.createdAtMs = conn.created_at.value_or(0);
+        c.dest = QString::fromStdString(conn.dest.value_or(""));
+        c.upload = conn.upload.value_or(0);
+        c.download = conn.download.value_or(0);
+        c.domain = QString::fromStdString(conn.domain.value_or(""));
+        c.network = QString::fromStdString(conn.network.value_or(""));
+        c.outbound = QString::fromStdString(conn.outbound.value_or(""));
+        c.process = QString::fromStdString(conn.process.value_or(""));
+        c.processPath = QString::fromStdString(conn.process_path.value_or(""));
+        c.protocol = QString::fromStdString(conn.protocol.value_or(""));
+        c.closedAtMs = conn.closed_at.value_or(0);
+        c.source = QString::fromStdString(conn.source.value_or(""));
         // In tun mode our own traffic enters with the tun's (or this machine's LAN) address, so a loopback-only test would label it a LAN client.
         const QString host = endpointHost(c.source);
         c.sourceDisplay = host.isEmpty() || LocalNetwork::IsOwnAddress(host) ? localLabel : host;
@@ -185,7 +190,7 @@ namespace Stats
 
             auto credit = [&](const libcore::ConnectionMetaData& cm, qint64 curUp, qint64 curDown)
             {
-                const QString id = QString::fromStdString(cm.id.value());
+                const QString id = QString::fromStdString(cm.id.value_or(""));
                 qint64 baseUp = 0, baseDown = 0;
                 if (const auto it = lastBytes_.constFind(id); it != lastBytes_.constEnd())
                 {
@@ -197,24 +202,24 @@ namespace Stats
                 if (dUp < 0) dUp = 0;
                 if (dDown < 0) dDown = 0;
                 if (dUp == 0 && dDown == 0) return;
-                QString name = QString::fromStdString(cm.process.value());
+                QString name = QString::fromStdString(cm.process.value_or(""));
                 if (name.isEmpty()) name = "Unknown";
-                trafficStatsManager->AddAppDelta(name, QString::fromStdString(cm.process_path.value()), dUp, dDown);
+                trafficStatsManager->AddAppDelta(name, QString::fromStdString(cm.process_path.value_or("")), dUp, dDown);
             };
 
             for (const auto& cm : resp.active)
             {
-                const qint64 up = cm.upload.value();
-                const qint64 down = cm.download.value();
+                const qint64 up = cm.upload.value_or(0);
+                const qint64 down = cm.download.value_or(0);
                 credit(cm, up, down);
-                newLast.insert(QString::fromStdString(cm.id.value()), {up, down});
+                newLast.insert(QString::fromStdString(cm.id.value_or("")), {up, down});
             }
             for (const auto& cm : resp.closed)
             {
-                const QString id = QString::fromStdString(cm.id.value());
+                const QString id = QString::fromStdString(cm.id.value_or(""));
                 currentClosed.insert(id);
                 if (accountedClosed_.contains(id)) continue;
-                credit(cm, cm.upload.value(), cm.download.value());
+                credit(cm, cm.upload.value_or(0), cm.download.value_or(0));
             }
             lastBytes_ = newLast;             // drop evicted / now-closed live ids
             accountedClosed_ = currentClosed; // everything in the ring is accounted

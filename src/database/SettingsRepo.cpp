@@ -87,12 +87,16 @@ namespace Configs {
             {"dns_use_hosts", &dns_use_hosts},
             {"dns_predefined_enable", &dns_predefined_enable},
             {"connection_sort_asc", &connection_sort_asc},
+            {"enable_secondary_inbound", &enable_secondary_inbound},
         };
 
         intMap = {
             {"current_group",          &current_group},
             {"last_filter_column",     &last_filter_column},
             {"inbound_socks_port",     &inbound_socks_port},
+            {"secondary_inbound_port", &secondary_inbound_port},
+            {"secondary_profile_id",   &secondary_profile_id},
+            {"primary_profile_id",     &primary_profile_id},
             {"mux_concurrency",        &mux_concurrency},
             {"test_concurrent",        &test_concurrent},
             {"remember_id",            &remember_id},

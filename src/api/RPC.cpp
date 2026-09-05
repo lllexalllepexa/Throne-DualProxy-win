@@ -419,22 +419,13 @@ namespace API {
         }
     }
 
+    // Note: QueryVPNStatus is unimplemented in public ThroneCore releases. Returning an empty reply prevents unknown method error log spam.
     libcore::VPNStatusResponse Client::QueryVPNStatus(bool *rpcOK, const QStringList &endpointTags,
                                                       int timeoutMs) const {
-        libcore::VPNStatusRequest request;
-        for (const auto &tag : endpointTags) request.endpoint_tags.push_back(tag.toStdString());
-        request.timeout_ms = timeoutMs;
-        libcore::VPNStatusResponse reply;
-        std::vector<uint8_t> resp;
-        auto status = channel->Call("QueryVPNStatus", spb::pb::serialize<std::string>(request), resp);
-
-        if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
-            *rpcOK = true;
-            return reply;
-        } else {
-            NOT_OK
-            return {};
-        }
+        Q_UNUSED(endpointTags);
+        Q_UNUSED(timeoutMs);
+        if (rpcOK != nullptr) *rpcOK = false;
+        return {};
     }
 
     QString Client::SubmitVPNChallenge(bool *rpcOK, const QString &endpointTag, const QString &challengeId,
@@ -517,8 +508,8 @@ namespace API {
 
         if (status == LocalSocketChannel::CallOK && tryDeserialize(resp, reply)) {
             *rpcOK = true;
-            if (closedCount != nullptr) *closedCount = reply.closed.value();
-            return QString::fromStdString(reply.error.value());
+            if (closedCount != nullptr) *closedCount = reply.closed.value_or(0);
+            return QString::fromStdString(reply.error.value_or(""));
         } else {
             NOT_OK
             return "IPC error";
