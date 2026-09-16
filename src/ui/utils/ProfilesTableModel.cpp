@@ -97,6 +97,7 @@ QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
     const int startedId = Configs::dataManager->settingsRepo->started_id;
     const bool isRunning = (profile->id == startedId);
     const bool isSecondary = Configs::dataManager->settingsRepo->enable_secondary_inbound &&
+                             Configs::dataManager->settingsRepo->started_id >= 0 &&
                              (profile->id == Configs::dataManager->settingsRepo->secondary_profile_id);
     QColor linkColor = isRunning ? QApplication::palette().link().color() : QColor();
     QColor secondaryColor = isSecondary ? QColor(0, 180, 140) : QColor();

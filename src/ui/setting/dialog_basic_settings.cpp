@@ -339,6 +339,11 @@ void DialogBasicSettings::accept() {
     Configs::dataManager->settingsRepo->custom_inbound = CACHE.custom_inbound;
     D_SAVE_INT(inbound_socks_port)
     D_SAVE_INT(secondary_inbound_port)
+    // Validate secondary port does not collide with primary port
+    if (Configs::dataManager->settingsRepo->secondary_inbound_port > 0 &&
+        Configs::dataManager->settingsRepo->secondary_inbound_port == Configs::dataManager->settingsRepo->inbound_socks_port) {
+        Configs::dataManager->settingsRepo->secondary_inbound_port = Configs::dataManager->settingsRepo->inbound_socks_port + 1;
+    }
     if (!Configs::dataManager->settingsRepo->random_inbound_port && ui->random_listen_port->isChecked())
     {
         needChoosePort = true;

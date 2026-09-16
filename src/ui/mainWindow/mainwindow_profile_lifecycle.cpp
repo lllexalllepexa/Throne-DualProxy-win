@@ -378,10 +378,12 @@ void MainWindow::profile_start(int _id) {
 
             if (Configs::dataManager->settingsRepo->enable_secondary_inbound &&
                 Configs::dataManager->settingsRepo->secondary_profile_id >= 0) {
+                const int secId = Configs::dataManager->settingsRepo->secondary_profile_id;
+                const int secPort = Configs::dataManager->settingsRepo->secondary_inbound_port;
+                const int startedId = ent->id;
                 runOnNewThread([=, this] {
                     auto secResp = NetworkRequestHelper::HttpGet(
-                        "http://ip-api.com/json/", false, true, 0,
-                        Configs::dataManager->settingsRepo->secondary_inbound_port);
+                        "http://ip-api.com/json/", false, true, 0, secPort);
                     if (secResp.error.isEmpty()) {
                         QJsonDocument sDoc = QJsonDocument::fromJson(secResp.data);
                         if (sDoc.isObject()) {
@@ -389,13 +391,20 @@ void MainWindow::profile_start(int _id) {
                             QString sCity = sObj["city"].toString();
                             QString sCountryName = sObj["country"].toString();
                             QString sCountryCode = sObj["countryCode"].toString();
-                            auto secProf = Configs::dataManager->profilesRepo->GetProfile(
-                                Configs::dataManager->settingsRepo->secondary_profile_id);
-                            if (secProf) {
-                                secProf->runningCountryInfo = QString("%1 %2, %3").arg(
-                                    CountryCodeToFlag(sCountryCode), sCountryName, sCity);
-                                runOnUiThread([this] { refresh_status(); });
-                            }
+                            // Guard against stale callback after stop/restart
+                            runOnUiThread([=, this] {
+                                if (running == nullptr || running->id != startedId) return;
+                                auto secProf = Configs::dataManager->profilesRepo->GetProfile(secId);
+                                if (secProf) {
+                                    if (!sCountryName.isEmpty() || !sCity.isEmpty()) {
+                                        secProf->runningCountryInfo = QString("%1 %2, %3").arg(
+                                            CountryCodeToFlag(sCountryCode), sCountryName, sCity);
+                                    } else {
+                                        secProf->runningCountryInfo.clear();
+                                    }
+                                    refresh_status();
+                                }
+                            });
                         }
                     }
                 });

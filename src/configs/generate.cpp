@@ -1089,7 +1089,8 @@ namespace Configs {
                 inbounds += inboundObj;
             }
 
-            if (settings.enable_secondary_inbound && settings.secondary_profile_id >= 0) {
+            if (settings.enable_secondary_inbound && settings.secondary_profile_id >= 0 &&
+                dataManager->profilesRepo->GetProfile(settings.secondary_profile_id) != nullptr) {
                 QJsonObject secInboundObj;
                 secInboundObj["tag"] = tags::secondaryIn;
                 secInboundObj["type"] = "mixed";
@@ -1945,9 +1946,18 @@ namespace Configs {
                 }
                 rawRouteObj = RouteProfile::TranslateRawOutbounds(rawRouteObj, routeDeps.outboundMap);
                 if (routeChain->preventModifications) {
+                    auto rawRules = rawRouteObj.value("rules").toArray();
+                    // Inject secondary proxy route rule before user rules
+                    if (!ctx.forTest && settings.enable_secondary_inbound && settings.secondary_profile_id >= 0 &&
+                        dataManager->profilesRepo->GetProfile(settings.secondary_profile_id) != nullptr) {
+                        rawRules.prepend(QJsonObject{
+                            {"inbound", QJsonArray{tags::secondaryIn}},
+                            {"action", "route"},
+                            {"outbound", hopTag(tags::secondaryChainPrefix, 0)},
+                        });
+                    }
                     // The raw JSON is verbatim, but endpoint tags are internal so the user cannot name them.
                     if (!ctx.vpnAuxTags.isEmpty()) {
-                        auto rawRules = rawRouteObj.value("rules").toArray();
                         for (const auto &auxTag : ctx.vpnAuxTags) {
                             rawRules.append(QJsonObject{
                                 {"preferred_by", QJsonArray{auxTag}},
@@ -1955,8 +1965,8 @@ namespace Configs {
                                 {"outbound", auxTag},
                             });
                         }
-                        rawRouteObj["rules"] = rawRules;
                     }
+                    rawRouteObj["rules"] = rawRules;
                     ctx.result->coreConfig["route"] = rawRouteObj;
                     return;
                 }
@@ -1985,6 +1995,7 @@ namespace Configs {
                 }
                 injected.dnsHijack = QJsonObject{
                     {"protocol", "dns"},
+                    {"inbound", QJsonArray{tags::mixedIn, tags::tunIn}},
                     {"action", "hijack-dns"},
                 };
                 if (settings.enable_redirect && !ctx.forTest) {
@@ -2006,7 +2017,8 @@ namespace Configs {
                                                   : routeChain->get_route_rules(false, routeDeps.outboundMap);
             if (ctx.l3Bridge) profileRules = withL3BridgeTwins(profileRules);
 
-            if (!ctx.forTest && settings.enable_secondary_inbound && settings.secondary_profile_id >= 0) {
+            if (!ctx.forTest && settings.enable_secondary_inbound && settings.secondary_profile_id >= 0 &&
+                dataManager->profilesRepo->GetProfile(settings.secondary_profile_id) != nullptr) {
                 profileRules.prepend(QJsonObject{
                     {"inbound", QJsonArray{tags::secondaryIn}},
                     {"action", "route"},

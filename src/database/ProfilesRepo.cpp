@@ -393,6 +393,13 @@ namespace Configs {
             if (stopRunningProfile) GetMainWindow()->profile_stop(false, true, false);
             else ids.removeAll(dataManager->settingsRepo->started_id);
         }
+        // Reset secondary proxy if its profile is being deleted
+        if (dataManager->settingsRepo->enable_secondary_inbound &&
+            ids.contains(dataManager->settingsRepo->secondary_profile_id)) {
+            dataManager->settingsRepo->enable_secondary_inbound = false;
+            dataManager->settingsRepo->secondary_profile_id = -1;
+            dataManager->settingsRepo->Save();
+        }
         auto profiles = GetProfileBatch(ids);
         for (const auto& ent : profiles) {
             groupIDs.insert(ent->gid);

@@ -280,6 +280,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             return;
         }
 
+        // Block incompatible profile types
+        auto prof = Configs::dataManager->profilesRepo->GetProfile(newId);
+        if (prof != nullptr && (prof->type == "autoselector" || prof->type == "extracore")) {
+            MessageBoxWarning(tr("Secondary Proxy"), tr("This profile type (%1) cannot be used as a secondary proxy.").arg(prof->type));
+            return;
+        }
+
         int currentPort = Configs::dataManager->settingsRepo->secondary_inbound_port;
         if (currentPort <= 0) currentPort = 2081;
         bool ok = false;
