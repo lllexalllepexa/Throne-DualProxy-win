@@ -168,27 +168,30 @@
             </property>
            </widget>
           </item>
-           <item row="1" column="2">
-            <widget class="QLineEdit" name="inbound_address"/>
-           </item>
-           <item row="5" column="3">
-            <widget class="QLabel" name="secondary_inbound_port_l">
-             <property name="text">
-              <string>Secondary Listen Port</string>
-             </property>
-            </widget>
-           </item>
-           <item row="5" column="4">
-            <widget class="QLineEdit" name="secondary_inbound_port">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-            </widget>
-           </item>
-          </layout>
+          <item row="1" column="2">
+           <widget class="QLineEdit" name="inbound_address"/>
+          </item>
+          <item row="5" column="3">
+           <widget class="QLabel" name="secondary_inbound_port_l">
+            <property name="toolTip">
+             <string>Port of the Dual Proxy secondary inbound (mixed SOCKS/HTTP), used once a profile is set as the secondary proxy.</string>
+            </property>
+            <property name="text">
+             <string>Secondary Listen Port</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="4">
+           <widget class="QLineEdit" name="secondary_inbound_port">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </widget>
        </item>
        <item>
@@ -279,6 +282,67 @@
            </layout>
           </item>
           <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_direct_test">
+            <item>
+             <widget class="QLabel" name="label_direct_test_url">
+              <property name="toolTip">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fetched &lt;span style=&quot; font-weight:600;&quot;&gt;without&lt;/span&gt; any proxy, so features that must tell a dead internet connection apart from dead servers — such as the auto selector — can check the connection itself, and notice the moment it comes back.&lt;/p&gt;&lt;p&gt;Only put a URL here that is reachable &lt;span style=&quot; font-weight:600;&quot;&gt;directly&lt;/span&gt; on your network. Leave it empty to rely on the operating system's network state instead.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="text">
+               <string>Direct Test URL</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="direct_test_url">
+              <property name="placeholderText">
+               <string>optional — use the OS network state</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_exit_lookup">
+            <item>
+             <widget class="QCheckBox" name="exit_country_lookup">
+              <property name="toolTip">
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;After connecting, Throne asks an IP lookup service — through the proxy — which IP and country the connection exits from.&lt;/p&gt;&lt;p&gt;Turn this off to never contact such a service automatically.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+              </property>
+              <property name="text">
+               <string>Look up exit country</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_exit_lookup_provider">
+              <property name="text">
+               <string>Lookup service</string>
+              </property>
+              <property name="buddy">
+               <cstring>exit_lookup_provider</cstring>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="exit_lookup_provider"/>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_exit_lookup">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item>
            <layout class="QHBoxLayout" name="horizontalLayout_11">
             <item>
              <widget class="QLabel" name="label_14">
@@ -311,20 +375,20 @@
        <item>
         <widget class="QGroupBox" name="url_scheme_box">
          <property name="title">
-          <string>URL Scheme</string>
+          <string>Links and Files</string>
          </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_url_scheme">
-          <item>
+         <layout class="QGridLayout" name="gridLayout_url_scheme">
+          <item row="0" column="0">
            <widget class="QCheckBox" name="url_scheme_auto_register">
             <property name="toolTip">
-             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Registers Throne as the handler for throne:// links and adds it to the &quot;Open with&quot; list for config files, re-applying the registration whenever the install is moved.&lt;/p&gt;&lt;p&gt;Turning this off does not undo an existing registration: use Uninstall for that.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Registers Throne as the handler for throne:// links, re-applying the registration whenever the install is moved.&lt;/p&gt;&lt;p&gt;Turning this off does not undo an existing registration: use Uninstall for that.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
             <property name="text">
              <string>Register throne:// links at startup</string>
             </property>
            </widget>
           </item>
-          <item>
+          <item row="0" column="1">
            <spacer name="horizontalSpacer_url_scheme">
             <property name="orientation">
              <enum>Qt::Orientation::Horizontal</enum>
@@ -337,14 +401,14 @@
             </property>
            </spacer>
           </item>
-          <item>
+          <item row="0" column="2">
            <widget class="QLabel" name="url_scheme_status">
             <property name="text">
              <string notr="true"/>
             </property>
            </widget>
           </item>
-          <item>
+          <item row="0" column="3">
            <widget class="QPushButton" name="url_scheme_install">
             <property name="toolTip">
              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Registers the handler now, without waiting for the next start.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -354,10 +418,47 @@
             </property>
            </widget>
           </item>
-          <item>
+          <item row="0" column="4">
            <widget class="QPushButton" name="url_scheme_uninstall">
             <property name="toolTip">
-             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Removes every entry Throne wrote for the handler and the config file associations. Entries owned by other applications are left alone.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Removes the throne:// handler Throne wrote. Entries owned by other applications are left alone.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="text">
+             <string>Uninstall</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QCheckBox" name="file_assoc_auto_register">
+            <property name="toolTip">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Adds Throne to the &quot;Open with&quot; list for config files such as JSON and YAML, re-applying the registration whenever the install is moved.&lt;/p&gt;&lt;p&gt;Turning this off does not undo an existing registration: use Uninstall for that.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="text">
+             <string>Register config files at startup</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="2">
+           <widget class="QLabel" name="file_assoc_status">
+            <property name="text">
+             <string notr="true"/>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="3">
+           <widget class="QPushButton" name="file_assoc_install">
+            <property name="toolTip">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Registers the associations now, without waiting for the next start.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="text">
+             <string>Install</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="4">
+           <widget class="QPushButton" name="file_assoc_uninstall">
+            <property name="toolTip">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Removes every config file association Throne wrote, including those added by older versions. Associations owned by other applications are left alone.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
             <property name="text">
              <string>Uninstall</string>
@@ -424,13 +525,6 @@
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QCheckBox" name="log_auto_scroll">
-               <property name="text">
-                <string>Auto-scroll log</string>
                </property>
               </widget>
              </item>
@@ -599,6 +693,33 @@
             <item row="1" column="1">
              <widget class="QComboBox" name="font_size"/>
             </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="label_log_font">
+              <property name="text">
+               <string>Log Browser Font</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QFontComboBox" name="log_font_family">
+              <property name="fontFilters">
+               <set>QFontComboBox::FontFilter::MonospacedFonts</set>
+              </property>
+              <property name="toolTip">
+               <string>Only monospaced fonts are listed. An unavailable family falls back to a built-in monospace list.</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="0">
+             <widget class="QLabel" name="label_log_font_size">
+              <property name="text">
+               <string>Log Browser Font Size</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="1">
+             <widget class="QComboBox" name="log_font_size"/>
+            </item>
            </layout>
           </widget>
          </item>
@@ -659,13 +780,6 @@
               </property>
               <property name="text">
                <string>Hide dashboard at startup</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QCheckBox" name="show_sys_dns">
-              <property name="text">
-               <string>Show System DNS option</string>
               </property>
              </widget>
             </item>
@@ -814,21 +928,21 @@
        <string>Subscription</string>
       </attribute>
       <layout class="QGridLayout" name="gridLayout_7">
-       <item row="9" column="1">
+       <item row="10" column="1">
         <widget class="QLineEdit" name="sub_custom_hwid_params">
          <property name="placeholderText">
           <string>hwid=custom_value,os=custom_os,osVersion=custom_version,model=custom_model</string>
          </property>
         </widget>
        </item>
-       <item row="4" column="0">
+       <item row="7" column="0">
         <widget class="QCheckBox" name="sub_clear">
          <property name="text">
           <string>Clear servers before updating subscription</string>
          </property>
         </widget>
        </item>
-       <item row="5" column="0" colspan="2">
+       <item row="8" column="0" colspan="2">
         <widget class="QCheckBox" name="sub_show_change_popup">
          <property name="toolTip">
           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When enabled, a window listing added / updated / deleted profiles is shown after a manual subscription update. The same information is always written to the log.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -838,7 +952,7 @@
          </property>
         </widget>
        </item>
-       <item row="2" column="1">
+       <item row="3" column="1">
         <widget class="MyLineEdit" name="user_agent"/>
        </item>
        <item row="1" column="0">
@@ -888,7 +1002,17 @@
          </item>
         </layout>
        </item>
-       <item row="8" column="0" colspan="2">
+       <item row="2" column="1">
+        <widget class="QCheckBox" name="sub_respect_server_interval">
+         <property name="toolTip">
+          <string>Subscriptions whose server sends an update interval (profile-update-interval) follow it; the interval above applies when a server sends none. Groups can override this in their Advanced settings.</string>
+         </property>
+         <property name="text">
+          <string>Use the update interval sent by the server</string>
+         </property>
+        </widget>
+       </item>
+       <item row="9" column="0" colspan="2">
         <widget class="QCheckBox" name="sub_send_hwid">
          <property name="toolTip">
           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;HWID=%1&lt;/p&gt;&lt;p&gt;OS=%2&lt;/p&gt;&lt;p&gt;OS Version=%3&lt;/p&gt;&lt;p&gt;Model=%4&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -898,7 +1022,7 @@
          </property>
         </widget>
        </item>
-       <item row="9" column="0">
+       <item row="10" column="0">
         <widget class="QLabel" name="label_custom_hwid_params">
          <property name="toolTip">
           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Format: hwid=value,os=value,osVersion=value,model=value&lt;/p&gt;&lt;p&gt;Leave empty to use default values. Only specify the parameters you want to override.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -908,7 +1032,7 @@
          </property>
         </widget>
        </item>
-       <item row="3" column="0">
+       <item row="6" column="0">
         <widget class="QCheckBox" name="allow_stopping_active_profile">
          <property name="toolTip">
           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;When enabled, If the currently active profile needs to be removed, it will be stopped and removed, otherwise it will not be removed at all&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -918,11 +1042,64 @@
          </property>
         </widget>
        </item>
-       <item row="2" column="0">
+       <item row="3" column="0">
         <widget class="QLabel" name="label_4">
          <property name="text">
           <string>User Agent</string>
          </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="sub_tls_version_l">
+         <property name="toolTip">
+          <string>TLS versions offered when fetching subscriptions. Some servers answer the default handshake with a CAPTCHA or a block page; TLS 1.2 often gets through.</string>
+         </property>
+         <property name="text">
+          <string>TLS Version</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QComboBox" name="sub_tls_version">
+         <item>
+          <property name="text">
+           <string>Auto</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>TLS 1.2</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>TLS 1.3</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="sub_http_version_l">
+         <property name="toolTip">
+          <string>Auto uses HTTP/2 when the server offers it.</string>
+         </property>
+         <property name="text">
+          <string>HTTP Version</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QComboBox" name="sub_http_version">
+         <item>
+          <property name="text">
+           <string>Auto</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>HTTP/1.1</string>
+          </property>
+         </item>
         </widget>
        </item>
        <item row="0" column="1">
@@ -1350,7 +1527,20 @@
               <number>0</number>
              </property>
              <item>
-              <widget class="QLineEdit" name="xray_geoip_url"/>
+              <widget class="QComboBox" name="xray_geoip_url">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="editable">
+                <bool>true</bool>
+               </property>
+               <property name="sizeAdjustPolicy">
+                <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+               </property>
+              </widget>
              </item>
              <item>
               <widget class="QPushButton" name="xray_geoip_download">
@@ -1391,7 +1581,20 @@
               <number>0</number>
              </property>
              <item>
-              <widget class="QLineEdit" name="xray_geosite_url"/>
+              <widget class="QComboBox" name="xray_geosite_url">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="editable">
+                <bool>true</bool>
+               </property>
+               <property name="sizeAdjustPolicy">
+                <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+               </property>
+              </widget>
              </item>
              <item>
               <widget class="QPushButton" name="xray_geosite_download">
@@ -1472,6 +1675,16 @@
            <widget class="QCheckBox" name="backup_inc_otp">
             <property name="text">
              <string>OTP profiles</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="backup_inc_ip_lists">
+            <property name="text">
+             <string>IP lists and scans</string>
             </property>
             <property name="checked">
              <bool>true</bool>
@@ -1565,6 +1778,69 @@
         </widget>
        </item>
        <item>
+        <widget class="QGroupBox" name="groupBox_backup_webdav">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="title">
+          <string>WebDAV</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_backup_webdav">
+          <item>
+           <widget class="QLabel" name="label_webdav_desc">
+            <property name="text">
+             <string>Keep backups on a WebDAV server such as Nextcloud, a NAS or Yandex Disk. Uploads include the parts checked under Create Backup.</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_webdav_btn">
+            <item>
+             <widget class="QPushButton" name="webdav_settings">
+              <property name="text">
+               <string>WebDAV Settings...</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="webdav_upload">
+              <property name="text">
+               <string>Upload to WebDAV</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="webdav_restore">
+              <property name="text">
+               <string>Restore from WebDAV...</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_webdav">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
         <spacer name="verticalSpacer_backup">
          <property name="orientation">
           <enum>Qt::Orientation::Vertical</enum>
@@ -1584,6 +1860,17 @@
        <string>Security</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_4">
+       <item>
+        <widget class="QCheckBox" name="kill_switch">
+         <property name="toolTip">
+          <string>While Throne is running, block all traffic that does not go through Throne, including when no profile is running.
+The local network stays reachable unless Private Range Bypass is turned off in Tun Settings.</string>
+         </property>
+         <property name="text">
+          <string>Kill Switch</string>
+         </property>
+        </widget>
+       </item>
        <item>
         <widget class="QCheckBox" name="disable_priv_req">
          <property name="text">

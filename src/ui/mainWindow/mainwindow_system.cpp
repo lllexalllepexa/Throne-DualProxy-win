@@ -8,46 +8,45 @@
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QMenu>
 #include <QMessageBox>
+#include <QPushButton>
+#include <QThread>
 
-#include "3rdparty/qv2ray/v2/proxy/QvProxyConfigurator.hpp"
 #include "include/api/RPC.h"
+#include "include/api/remote/Server.hpp"
 #include "include/configs/generate.h"
+#include "include/engine/EngineHost.h"
+#include "include/engine/ThreadCheck.h"
+#include "include/engine/app/ExitController.h"
+#include "include/engine/connection/ConnectionManager.h"
+#include "include/engine/services/Dashboard.h"
+#include "include/engine/supervisor/CoreSupervisor.h"
 #include "include/global/Configs.hpp"
 #include "include/global/HTTPRequestHelper.hpp"
+#include "include/global/LocalNetwork.hpp"
 #include "include/global/Logger.hpp"
-#include "include/sys/Process.hpp"
+#include "include/scanner/ScanManager.h"
+#include "include/sys/HostPresence.hpp"
+#include "include/sys/KillSwitch.hpp"
+#include "include/sys/SystemProxy.hpp"
 #include "include/ui/mainWindow/MainWindowInternal.h"
 
 #include "include/ui/group/dialog_manage_groups.h"
 #include "include/ui/setting/dialog_basic_settings.h"
-#include "include/ui/setting/dialog_hotkey.h"
+#include "include/ui/setting/dialog_integration.h"
 #include "include/ui/setting/dialog_manage_routes.h"
 #include "include/ui/setting/dialog_otp_manager.h"
 #include "include/ui/setting/dialog_preset_settings.h"
 #include "include/ui/setting/dialog_vpn_settings.h"
+#include "include/ui/setting/RawRouteItem.h"
+#include "include/ui/setting/RouteItem.h"
+#include "include/database/RoutesRepo.h"
 
 #ifdef Q_OS_WIN
 #include "3rdparty/WinCommander.hpp"
 #include "include/sys/windows/WinVersion.h"
 #endif
-#ifdef Q_OS_LINUX
-#include "include/sys/linux/LinuxCap.h"
-#endif
-#ifdef Q_OS_MACOS
-#include "include/sys/macos/MacOS.h"
-#endif
-
-qint64 MainWindow::GetCorePid() {
-    QMutexLocker lock(&coreProcessMutex);
-    return core_process ? core_process->processId() : 0;
-}
-
-QString MainWindow::GetRunningConfigName() {
-    auto ent = running;
-    if (ent == nullptr || ent->outbound == nullptr) return {};
-    return ent->outbound->DisplayTypeAndName();
-}
 
 void MainWindow::on_menu_basic_settings_triggered() {
     USE_DIALOG(DialogBasicSettings)
@@ -68,6 +67,36 @@ void MainWindow::on_menu_routing_settings_triggered() {
     dialog->show();
 }
 
+void MainWindow::openRouteProfileEditor(int routeId) {
+    // Also keeps the routing dialog from saving its stale copy over this edit.
+    if (dialog_is_using) return;
+    const auto profile = Configs::dataManager->routesRepo->GetRouteProfile(routeId);
+    if (profile == nullptr) return;
+    dialog_is_using = true;
+
+    const auto onSaved = [this](const std::shared_ptr<Configs::RouteProfile>& chain) {
+        if (!Configs::dataManager->routesRepo->Save(chain)) return;
+        if (chain->id == Configs::dataManager->settingsRepo->current_route_id)
+            connection()->noteRestartNeeded(Engine::RestartReason::Routing);
+    };
+    QDialog* editor;
+    if (profile->isRaw) {
+        auto* raw = new RawRouteItem(this, profile);
+        connect(raw, &RawRouteItem::settingsChanged, this, onSaved);
+        editor = raw;
+    } else {
+        auto* item = new RouteItem(this, profile);
+        connect(item, &RouteItem::settingsChanged, this, onSaved);
+        editor = item;
+    }
+    connect(editor, &QDialog::finished, this, [=, this] {
+        editor->deleteLater();
+        dialog_is_using = false;
+    });
+    editor->setWindowModality(Qt::ApplicationModal);
+    editor->show();
+}
+
 void MainWindow::on_menu_vpn_settings_triggered() {
     USE_DIALOG(DialogVPNSettings)
 }
@@ -80,10 +109,10 @@ void MainWindow::on_menu_otp_manager_triggered() {
     USE_DIALOG(DialogOtpManager)
 }
 
-void MainWindow::on_menu_hotkey_settings_triggered() {
+void MainWindow::on_menu_integration_settings_triggered() {
     if (dialog_is_using) return;
     dialog_is_using = true;
-    auto dialog = new DialogHotkey(this, getActionsForShortcut());
+    auto dialog = new DialogIntegration(this, getActionsForShortcut());
     connect(dialog, &QDialog::finished, this, [=,this]
     {
         dialog->deleteLater();
@@ -92,9 +121,7 @@ void MainWindow::on_menu_hotkey_settings_triggered() {
     dialog->show();
 }
 
-void MainWindow::on_commitDataRequest() {
-    qDebug() << "Start of data save";
-
+void MainWindow::saveWindowState() {
     auto* settings = Configs::dataManager->settingsRepo.get();
 
     settings->mainWindowGeometry = this->saveGeometry().toBase64(QByteArray::Base64Encoding);
@@ -103,50 +130,53 @@ void MainWindow::on_commitDataRequest() {
         if (settings->mw_size != news) settings->mw_size = news;
     }
     settings->splitter_state = ui->splitter->saveState().toBase64();
-
-    // Backstop only: this runs on a graceful exit, so it must never be the sole write.
-    if (settings->remember_enable && settings->started_id >= 0) settings->remember_id = settings->started_id;
-    settings->remember_system_proxy = settings->spmode_system_proxy;
-    settings->remember_tun = settings->spmode_vpn;
-
-    settings->Save();
-    qDebug() << "End of data save";
 }
 
-void MainWindow::prepare_exit()
-{
-    qDebug() << "prepare for exit...";
-    mu_exit.lock();
-    if (Configs::dataManager->settingsRepo->prepare_exit)
-    {
-        qDebug() << "prepare exit had already succeeded, ignoring...";
-        mu_exit.unlock();
-        return;
-    }
-    Configs::dataManager->settingsRepo->prepare_exit = true;
-    LOG_INFO("prepare_exit started, tearing down proxy/tun/core");
-    if (Configs::dataManager->settingsRepo->spmode_system_proxy) set_system_proxy(false);
-    if (Configs::dataManager->settingsRepo->system_dns_set) set_system_dns(false, false);
-    RegisterHiddenMenuShortcuts(true);
-    RegisterHotkey(true);
-    on_commitDataRequest();
-    Configs::dataManager->settingsRepo->noSave = true; // don't change Configs::dataManager->settingsRepo after this line
-    profile_stop(false, true);
-
-    runOnThread([=, this]()
-    {
-        core_process->Kill();
-    }, DS_cores, true);
-    HideWindow(this);
-    tray->hide();
-
-    mu_exit.unlock();
-    qDebug() << "prepare exit done!";
+void MainWindow::on_commitDataRequest() {
+    saveWindowState();
+    exitController()->persistSessionState();
 }
 
 void MainWindow::on_menu_exit_triggered() {
-    prepare_exit();
-    if (exit_reason == ExitReason::RunUpdater) {
+    // A teardown already running quits on its own; a second request would cut its nested waits short.
+    if (Configs::dataManager->settingsRepo->prepare_exit || exitController()->exitInProgress()) return;
+    exitController()->setExitInProgress(true);
+    // A request made during the teardown below may overwrite exit_reason.
+    const auto reason = exit_reason;
+    const bool unattended = m_exitUnattended;
+    const bool restart = reason == ExitReason::Restart || reason == ExitReason::RestartWithTun ||
+                         reason == ExitReason::RestartElevated;
+    const auto program = QApplication::applicationFilePath();
+    QStringList arguments;
+    if (restart) {
+        arguments = Configs::dataManager->settingsRepo->argv;
+        if (arguments.length() > 0) {
+            arguments.removeFirst();
+            arguments.removeAll("-tray");
+            arguments.removeAll("-flag_restart_tun_on");
+        }
+        if (reason == ExitReason::RestartWithTun) arguments << "-flag_restart_tun_on";
+        if (unattended && m_exitKeepTray) arguments << "-tray";
+    }
+
+    bool relaunched = false;
+#ifdef Q_OS_WIN
+    if (reason == ExitReason::RestartWithTun || reason == ExitReason::RestartElevated) {
+        // Asked before the teardown so a declined UAC prompt leaves this instance running; the new one waits for this pid to exit.
+        const auto elevatedArguments = arguments + QStringList{QString("-wait_pid=%1").arg(QCoreApplication::applicationPid())};
+        const bool launched = WinCommander::runProcessElevated(program, elevatedArguments, QApplication::applicationDirPath(), 1, false) == 0;
+        if (!launched) {
+            exitController()->setExitInProgress(false);
+            exit_reason = ExitReason::None;
+            MW_show_log(tr("Restart as administrator was cancelled, Throne keeps running"));
+            return;
+        }
+        relaunched = true;
+    }
+#endif
+
+    Engine::host()->shutdown(!unattended);
+    if (reason == ExitReason::RunUpdater) {
         QDir::setCurrent(QApplication::applicationDirPath());
 #ifdef Q_OS_WIN
         QFile::copy("./updater.exe", "./updater.old");
@@ -154,178 +184,65 @@ void MainWindow::on_menu_exit_triggered() {
 #else
         QProcess::startDetached("./updater", QStringList{});
 #endif
-    } else if (exit_reason == ExitReason::Restart || exit_reason == ExitReason::RestartWithTun || exit_reason == ExitReason::RestartWithDns) {
+    } else if (restart && !relaunched) {
         QDir::setCurrent(QApplication::applicationDirPath());
-
-        auto arguments = Configs::dataManager->settingsRepo->argv;
-        if (arguments.length() > 0) {
-            arguments.removeFirst();
-            arguments.removeAll("-tray");
-            arguments.removeAll("-flag_restart_tun_on");
-            arguments.removeAll("-flag_restart_dns_set");
-        }
-        auto program = QApplication::applicationFilePath();
-
-        if (exit_reason == ExitReason::RestartWithTun || exit_reason == ExitReason::RestartWithDns) {
-            if (exit_reason == ExitReason::RestartWithTun) arguments << "-flag_restart_tun_on";
-            if (exit_reason == ExitReason::RestartWithDns) arguments << "-flag_restart_dns_set";
-#ifdef Q_OS_WIN
-            WinCommander::runProcessElevated(program, arguments, "", 1, false);
-#else
-            QProcess::startDetached(program, arguments);
-#endif
-        } else {
-            QProcess::startDetached(program, arguments);
-        }
+        // Until this process exits it holds the data dir lock and still answers on the instance socket.
+        arguments << QString("-wait_pid=%1").arg(QCoreApplication::applicationPid());
+        QProcess::startDetached(program, arguments);
     }
     QCoreApplication::quit();
+}
+
+void MainWindow::request_unattended_exit(ExitReason reason) {
+    if (Configs::dataManager->settingsRepo->prepare_exit || exitController()->exitInProgress()) return;
+    m_exitUnattended = true;
+    m_exitKeepTray = isHidden();
+    exit_reason = reason;
+    on_menu_exit_triggered();
 }
 
 void MainWindow::toggle_system_proxy() {
     auto currentState = Configs::dataManager->settingsRepo->spmode_system_proxy;
     if (currentState) {
-        set_spmode_system_proxy(false);
+        connection()->setSystemProxy(false);
     } else {
-        set_spmode_system_proxy(true);
+        connection()->setSystemProxy(true);
     }
 }
 
-bool MainWindow::get_elevated_permissions(ExitReason reason) {
-    if (Configs::dataManager->settingsRepo->disable_privilege_req)
-    {
-        MW_show_log(tr("User opted for no privilege req, some features may not work"));
-        return true;
-    }
-    if (Configs::IsAdmin()) return true;
-#ifdef Q_OS_LINUX
-    if (!Linux_HavePkexec()) {
-        MessageBoxWarning(software_name, "Please install \"pkexec\" first.");
-        return false;
-    }
-    auto n = QMessageBox::warning(GetMessageBoxParent(), software_name, tr("Please give the core root privileges"), QMessageBox::Yes | QMessageBox::No);
-    if (n == QMessageBox::Yes) {
-        runOnNewThread([=,this]
-        {
-            auto chownArgs = QString("root:root " + Configs::FindCoreRealPath());
-            auto ret = Linux_Run_Command("chown", chownArgs);
-            if (ret != 0) {
-                MW_show_log(QString("Failed to run chown %1 code is %2").arg(chownArgs).arg(ret));
-            }
-            auto chmodArgs = QString("u+s " + Configs::FindCoreRealPath());
-            ret = Linux_Run_Command("chmod", chmodArgs);
-            if (ret == 0) {
-                StopVPNProcess();
-            } else {
-                MW_show_log(QString("Failed to run chmod %1").arg(chmodArgs));
-            }
-        });
-        return false;
-    }
-#endif
-#ifdef Q_OS_WIN
-    auto n = QMessageBox::warning(GetMessageBoxParent(), software_name, tr("Please run Throne as admin"), QMessageBox::Yes | QMessageBox::No);
-    if (n == QMessageBox::Yes) {
-        this->exit_reason = reason;
-        on_menu_exit_triggered();
-    }
-#endif
-
-#ifdef Q_OS_MACOS
-    if (Configs::isSetuidSet(Configs::FindCoreRealPath().toStdString()))
-    {
-        StopVPNProcess();
-        return true;
-    }
-    auto n = QMessageBox::warning(GetMessageBoxParent(), software_name, tr("Please give the core root privileges"), QMessageBox::Yes | QMessageBox::No);
-    if (n == QMessageBox::Yes)
-    {
-        auto Command = QString("sudo chown root:wheel '%1' && sudo chmod u+s '%1'").arg(Configs::FindCoreRealPath());
-        auto ret = Mac_Run_Command(Command);
-        if (ret == 0) {
-            MessageBoxInfo(tr("Requesting permission"), tr("Please Enter your password in the opened terminal, then try again"));
-            return false;
-        } else {
-            MW_show_log(QString("Failed to run %1 with %2").arg(Command).arg(ret));
-            return false;
-        }
-    }
-#endif
-    return false;
-}
-
-void MainWindow::set_system_proxy(bool enable) {
-    if (enable) {
-        auto socks_port = Configs::dataManager->settingsRepo->inbound_socks_port;
-        SetSystemProxy(socks_port, socks_port, Configs::dataManager->settingsRepo->proxy_scheme);
-    } else {
-        ClearSystemProxy();
-    }
-}
-
-void MainWindow::set_spmode_system_proxy(bool enable, bool save) {
-    if (enable && Configs::dataManager->settingsRepo->disable_mixed_inbound) {
-        runOnUiThread([=, this] {
-           MessageBoxWarning("Invalid Operation", "Cannot set system proxy when mixed inbound is disabled.");
-        });
-        ui->checkBox_SystemProxy->setChecked(false);
-        return;
-    }
-    Configs::dataManager->settingsRepo->spmode_system_proxy = enable;
-    if (running) {
-        set_system_proxy(enable);
-        if (!enable && Configs::dataManager->settingsRepo->reset_proxy_on_disable_sp) {
-            profile_start(running->id);
-        }
-    }
-
-    if (save) {
-        Configs::dataManager->settingsRepo->remember_system_proxy = enable;
-        Configs::dataManager->settingsRepo->Save();
-    }
-
-    refresh_status();
-}
-
-void MainWindow::set_spmode_vpn(bool enable, bool save) {
-    if (enable == Configs::dataManager->settingsRepo->spmode_vpn) return;
-
-    if (enable) {
-        bool requestPermission = !Configs::IsAdmin();
-        if (requestPermission) {
-            if (!get_elevated_permissions()) {
-                refresh_status();
-                return;
-            }
-        }
-    }
-
-    if (save) {
-        // Written here, after the elevation check, so a failed enable is not remembered.
-        Configs::dataManager->settingsRepo->remember_tun = enable;
-        Configs::dataManager->settingsRepo->Save();
-    }
-
-    Configs::dataManager->settingsRepo->spmode_vpn = enable;
-    refresh_status();
-
-    if (Configs::dataManager->settingsRepo->started_id >= 0) profile_start(Configs::dataManager->settingsRepo->started_id);
+void MainWindow::toggle_tun() {
+    const auto state = connection()->connectionState();
+    if (state == ConnectionState::Connecting || state == ConnectionState::Stopping) return;
+    connection()->setTun(!Configs::dataManager->settingsRepo->spmode_vpn);
 }
 
 bool MainWindow::StopVPNProcess() {
-    runOnThread([=, this]
-    {
-        core_process->Kill();
-    }, DS_cores, true);
-
+    supervisor()->killForPrivilegeChange();
     return true;
 }
 
-void MainWindow::RestartCore() {
-    runOnThread([=, this]
-    {
-        profile_stop(true, true, true);
-        core_process->Kill();
-    }, DS_cores);
+void MainWindow::show_startstop_menu() {
+    if (!Configs::dataManager->settingsRepo->kill_switch) return;
+    QMenu menu(this);
+    connect(menu.addAction(tr("Disable Kill Switch")), &QAction::triggered, this, [this] { confirm_disable_kill_switch(); });
+    auto *button = ui->toolButton_startstop;
+    menu.exec(button->mapToGlobal(QPoint(0, button->height())));
+}
+
+void MainWindow::confirm_disable_kill_switch() {
+    auto *box = new QMessageBox(QMessageBox::Warning, tr("Disable kill switch"),
+                                tr("Turn off the kill switch? Traffic that does not go through Throne will no longer be blocked."),
+                                QMessageBox::NoButton, this);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    auto *disable = box->addButton(tr("Disable Kill Switch"), QMessageBox::DestructiveRole);
+    auto *cancel = box->addButton(QMessageBox::Cancel);
+    // Cancel is the default, so a stray Enter cannot complete the two-step disable.
+    box->setDefaultButton(cancel);
+    box->setEscapeButton(cancel);
+    connect(box, &QMessageBox::finished, this, [this, box, disable] {
+        if (box->clickedButton() == disable) connection()->disableKillSwitch();
+    });
+    box->open();
 }
 
 namespace {
@@ -399,42 +316,7 @@ bool isNewer(QString assetName) {
 
 constexpr auto dashboardDownloadURL = "https://github.com/SagerNet/sing-box-dashboard/archive/refs/heads/gh-pages.zip";
 
-bool copyOut(const QString &from, const QString &to) {
-    QFile::remove(to);
-    if (!QFile::copy(from, to)) return false;
-    // Resource files are read-only, and QFile::copy carries that onto the copy.
-    return QFile::setPermissions(to, QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                                     QFileDevice::ReadGroup | QFileDevice::ReadOther);
-}
-
-bool unpackBundledDashboard(const QDir &dest) {
-    if (!QFile::exists(":/dashboard/index.html")) return false;
-    const QDir bundle(":/dashboard");
-    QDirIterator it(bundle.path(), QDir::Files, QDirIterator::Subdirectories);
-    while (it.hasNext()) {
-        const auto source = it.next();
-        const auto target = dest.filePath(bundle.relativeFilePath(source));
-        if (!QDir().mkpath(QFileInfo(target).absolutePath()) || !copyOut(source, target)) return false;
-    }
-    return true;
-}
-
 } // namespace
-
-void MainWindow::SeedDashboard() {
-    QDir dashDir(Configs::apiDashboardDir);
-    if (!dashDir.exists() && !QDir().mkpath(Configs::apiDashboardDir)) return;
-    if (!QFile::exists(dashDir.filePath("index.html"))) unpackBundledDashboard(dashDir);
-    // Reinstalling replaces the whole directory, so this cannot be a one-time copy.
-    auto src = QFile(":/Throne/dashboard-bootstrap.html");
-    if (!src.open(QIODevice::ReadOnly)) return;
-    const auto data = src.readAll();
-    src.close();
-    if (auto dest = QFile(dashDir.filePath("throne.html")); dest.open(QIODevice::Truncate | QIODevice::WriteOnly)) {
-        dest.write(data);
-        dest.close();
-    }
-}
 
 void MainWindow::OpenDashboard() {
     const auto &settings = *Configs::dataManager->settingsRepo;
@@ -449,7 +331,7 @@ void MainWindow::OpenDashboard() {
     }
 
     const auto show = [this, port] {
-        SeedDashboard();
+        Engine::Dashboard::SeedApi();
         // Fragment, not query: browsers never send it to the server.
         QUrl url(QString("http://127.0.0.1:%1/dashboard/throne.html").arg(port));
         url.setFragment(QString("secret=%1&url=127.0.0.1:%2")
@@ -459,7 +341,7 @@ void MainWindow::OpenDashboard() {
         QDesktopServices::openUrl(url);
     };
 
-    SeedDashboard();
+    Engine::Dashboard::SeedApi();
     if (QFile::exists(QDir(Configs::apiDashboardDir).filePath("index.html"))) {
         show();
         return;
@@ -536,7 +418,10 @@ void MainWindow::CheckUpdate() {
         return;
     }
 
-    auto resp = NetworkRequestHelper::HttpGet("https://api.github.com/repos/throneproj/Throne/releases");
+    // Releases carry no checksum or signature, so TLS is all that vouches for the download URL and the archive.
+    HttpGetOptions options;
+    options.strictTls = true;
+    auto resp = NetworkRequestHelper::HttpGet("https://api.github.com/repos/throneproj/Throne/releases", options);
     if (!resp.error.isEmpty()) {
         runOnUiThread([=,this] {
             MessageBoxWarning(QObject::tr("Update"), QObject::tr("Requesting update error: %1").arg(resp.error + "\n" + resp.data));
@@ -572,9 +457,15 @@ void MainWindow::CheckUpdate() {
     }
 
     runOnUiThread([=,this] {
-        auto allow_updater = !Configs::dataManager->settingsRepo->flag_use_appdata;
+        const auto headless = Sys::HostPresence::OtherHeadless();
+        const bool headlessSameInstall = headless && Sys::HostPresence::SameInstall(*headless, QCoreApplication::applicationDirPath());
+        auto allow_updater = !Configs::dataManager->settingsRepo->flag_use_appdata && !headlessSameInstall;
         QMessageBox box(QMessageBox::Question, QObject::tr("Update") + note_pre_release,
                         QObject::tr("Update found: %1\nRelease note:\n%2").arg(assets_name, release_note));
+        if (headlessSameInstall) {
+            box.setInformativeText(tr("Update is unavailable while a background Throne (PID %1) runs from this installation; stop it first.")
+                                       .arg(headless->pid));
+        }
         QAbstractButton *btn1 = nullptr;
         if (allow_updater) {
             btn1 = box.addButton(QObject::tr("Update"), QMessageBox::AcceptRole);
@@ -592,7 +483,7 @@ void MainWindow::CheckUpdate() {
                 }
                 QString errors;
                 if (!release_download_url.isEmpty()) {
-                    auto res = NetworkRequestHelper::DownloadAsset(release_download_url, "Throne.zip");
+                    auto res = NetworkRequestHelper::DownloadAsset(release_download_url, "Throne.zip", false, true);
                     if (!res.isEmpty()) {
                         errors += res;
                     }

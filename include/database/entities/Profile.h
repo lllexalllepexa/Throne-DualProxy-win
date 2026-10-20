@@ -15,6 +15,7 @@
 #include "include/configs/outbounds/socks.h"
 #include "include/configs/outbounds/http.h"
 #include "include/configs/outbounds/hysteria.h"
+#include "include/configs/outbounds/masque.h"
 #include "include/configs/outbounds/shadowsocks.h"
 #include "include/configs/outbounds/ssh.h"
 #include "include/configs/outbounds/trojan.h"
@@ -29,6 +30,7 @@
 #include "include/configs/outbounds/vmess.h"
 #include "include/configs/outbounds/xrayVless.h"
 
+#include "include/database/entities/EndpointSource.h"
 #include "include/global/CountryHelper.hpp"
 
 namespace Configs {
@@ -49,6 +51,8 @@ namespace Configs {
         QString ul_speed;
         QString test_country;
         std::shared_ptr<Configs::outbound> outbound;
+        // Inherit, Own or IpList.
+        EndpointSource endpoint;
 
         qint64 traffic_downlink = 0;
         qint64 traffic_uplink = 0;
@@ -64,6 +68,11 @@ namespace Configs {
 
         // Always set latency through here: it also stamps latency_at.
         void SetLatency(int ms);
+
+        // Untested profiles are neither; a kLatencyConnectOnly tunnel counts as working.
+        [[nodiscard]] bool IsWorking() const { return latency > 0 || latency == kLatencyConnectOnly; }
+
+        [[nodiscard]] bool IsUnavailable() const { return latency < 0 && latency != kLatencyConnectOnly; }
 
         [[nodiscard]] QString DisplayTestResult() const;
 
@@ -146,6 +155,10 @@ namespace Configs {
 
         [[nodiscard]] Configs::wireguard *Wireguard() const {
             return dynamic_cast<Configs::wireguard *>(outbound.get());
+        };
+
+        [[nodiscard]] Configs::masque *Masque() const {
+            return dynamic_cast<Configs::masque *>(outbound.get());
         };
 
         [[nodiscard]] Configs::openvpn *OpenVPN() const {

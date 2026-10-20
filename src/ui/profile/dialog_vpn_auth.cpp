@@ -1,6 +1,7 @@
 #include "include/ui/profile/dialog_vpn_auth.h"
 
-#include "include/ui/stats/dialog_endpoint_details.h"
+#include "include/engine/vpn/VpnAuthController.h"
+#include "include/engine/vpn/VpnEndpoints.h"
 
 #include <QColor>
 #include <QComboBox>
@@ -19,8 +20,8 @@
 #include <QTimer>
 #include <QUrl>
 
-#include "include/api/RPC.h"
 #include "include/global/Utils.hpp"
+#include "include/ui/utils/NoWheelComboBox.h"
 
 namespace {
     const QColor kVpnAuthErrorColor(0xE0, 0x5A, 0x5A);
@@ -39,11 +40,12 @@ namespace {
     }
 }
 
-DialogVpnAuth::DialogVpnAuth(QWidget *parent, const VpnAuthChallenge &_challenge, bool _localOnly)
+DialogVpnAuth::DialogVpnAuth(QWidget *parent, Engine::VpnAuthController *_auth, const VpnAuthChallenge &_challenge, bool _localOnly)
     : QDialog(parent)
     , ui(new Ui::DialogVpnAuth)
 {
     ui->setupUi(this);
+    auth = _auth;
     challenge = _challenge;
     localOnly = _localOnly;
 
@@ -212,7 +214,7 @@ void DialogVpnAuth::buildFormFields() {
         const auto label = field.label.isEmpty() ? field.submissionKey : field.label;
         QWidget *widget = nullptr;
         if (field.kind == "select") {
-            auto *combo = new QComboBox(ui->form_container);
+            auto *combo = new NoWheelComboBox(ui->form_container);
             for (const auto &option : field.options) {
                 combo->addItem(option.second.isEmpty() ? option.first : option.second, option.first);
             }
@@ -265,6 +267,7 @@ void DialogVpnAuth::submit() {
         done(QDialog::Accepted);
         return;
     }
+    if (auth == nullptr) return;
     submitting = true;
     setFieldsEnabled(false);
     vpnAuthSetLabel(ui->label_status, tr("Submitting..."));
@@ -282,23 +285,17 @@ void DialogVpnAuth::submit() {
         }
     }
 
-    const auto tag = challenge.endpointTag;
-    const auto id = challenge.id;
     QPointer<DialogVpnAuth> self(this);
-    runOnNewThread([self, tag, id, username, password, secret, formValues] {
-        bool rpcOK = false;
-        const auto error = API::defaultClient->SubmitVPNChallenge(&rpcOK, tag, id, username, password, secret, formValues);
-        runOnUiThread([self, error] {
-            if (self == nullptr) return;
-            self->submitting = false;
-            if (error.isEmpty()) {
-                self->finishing = true;
-                self->done(QDialog::Accepted);
-                return;
-            }
-            self->setFieldsEnabled(true);
-            vpnAuthSetLabel(self->ui->label_status, error);
-        });
+    auth->answer(challenge.endpointTag, challenge.id, {username, password, secret, formValues}, [self](const QString &error) {
+        if (self == nullptr) return;
+        self->submitting = false;
+        if (error.isEmpty()) {
+            self->finishing = true;
+            self->done(QDialog::Accepted);
+            return;
+        }
+        self->setFieldsEnabled(true);
+        vpnAuthSetLabel(self->ui->label_status, error);
     });
 }
 
@@ -308,15 +305,12 @@ void DialogVpnAuth::reject() {
         return;
     }
     finishing = true;
-    if (closeAction != CloseAction::None) {
+    if (closeAction != CloseAction::None && auth != nullptr) {
         const auto tag = challenge.endpointTag;
         const auto id = challenge.id;
         const auto acknowledge = closeAction == CloseAction::Acknowledge;
-        runOnNewThread([tag, id, acknowledge] {
-            bool rpcOK = false;
-            if (acknowledge) API::defaultClient->SubmitVPNChallenge(&rpcOK, tag, id, {}, {}, {});
-            else API::defaultClient->CancelVPNChallenge(&rpcOK, tag, id);
-        });
+        if (acknowledge) auth->answer(tag, id, {});
+        else auth->cancel(tag, id);
     }
     QDialog::reject();
 }

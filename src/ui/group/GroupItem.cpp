@@ -1,52 +1,36 @@
 #include "include/ui/group/GroupItem.h"
 
 #include "include/ui/group/dialog_edit_group.h"
-#include "include/global/GuiUtils.hpp"
+#include "include/ui/group/dialog_manage_groups.h"
+#include "include/ui/utils/GuiUtils.hpp"
 #include "include/configs/sub/GroupUpdater.hpp"
 
 #include <QMessageBox>
+#include <QPointer>
 
 #include "include/database/GroupsRepo.h"
-#include "include/ui/mainwindow.h"
+#include "include/engine/EngineHost.h"
+#include "include/engine/connection/ConnectionManager.h"
+#include "include/ui/stats/dialog_endpoint_details.h"
+#include "include/ui/widget/SubscriptionInfoCard.hpp"
 
-
-QString ParseSubInfo(const QString &info) {
-    if (info.trimmed().isEmpty()) return "";
-
-    long long used = 0;
-    long long total = 0;
-    long long expire = 0;
-
-    static const QRegularExpression re(
-        R"((total|upload|download|expire)=([0-9]+))");
-
-    auto it = re.globalMatch(info);
-
-    bool hasTotal = false;
-
-    while (it.hasNext()) {
-        const auto match = it.next();
-        const QStringView key = match.capturedView(1);
-        const long long value = match.capturedView(2).toLongLong();
-
-        if (key == u"total") {
-            total = value;
-            hasTotal = true;
-        } else if (key == u"upload" || key == u"download") {
-            used += value;
-        } else if (key == u"expire") {
-            expire = value;
+namespace {
+    QString ParseSubInfo(const Configs::Group &group) {
+        const auto &sub = group.sub_info;
+        QStringList parts;
+        if (sub.valid && sub.has_quota) {
+            QString remainStr = (sub.total > 0) ? ReadableSize(sub.remaining()) : QString::fromUtf8("\u221E");
+            QString expireStr = (sub.expire > 0) ? DisplayTime(sub.expire, QLocale::ShortFormat) : QObject::tr("None");
+            parts << QObject::tr("Used: %1 Remain: %2 Expire: %3").arg(ReadableSize(sub.used()), remainStr, expireStr);
         }
+        if (sub.valid && sub.expire > 0) {
+            parts << SubscriptionInfoCard::expiryText(sub.expire);
+        }
+        if (const auto plan = Subscription::ResolveAutoUpdate(group); plan.interval > 0) {
+            parts << QObject::tr("Auto-update: every %1").arg(Stats::HumanizeDuration(plan.interval));
+        }
+        return parts.join(" | ");
     }
-
-    if (!hasTotal)
-        return {};
-
-    return QObject::tr("Used: %1 Remain: %2 Expire: %3")
-        .arg(ReadableSize(used),
-             total == 0 ? QString::fromUtf8("\u221E")
-                        : ReadableSize(total - used),
-             DisplayTime(expire, QLocale::ShortFormat));
 }
 
 GroupItem::GroupItem(QWidget *parent, const std::shared_ptr<Configs::Group> &ent, QListWidgetItem *item) : QWidget(parent), ui(new Ui::GroupItem) {
@@ -57,6 +41,8 @@ GroupItem::GroupItem(QWidget *parent, const std::shared_ptr<Configs::Group> &ent
     this->ent = ent;
     this->item = item;
     if (ent == nullptr) return;
+
+    ui->subinfo->setTextFormat(Qt::PlainText);
 
     connect(this, &GroupItem::edit_clicked, this, &GroupItem::on_edit_clicked);
     connect(Subscription::updater(), &Subscription::GroupUpdater::asyncUpdateCallback, this, [=,this](int gid) { if (gid == this->ent->id) refresh_data(); });
@@ -86,8 +72,8 @@ void GroupItem::refresh_data() {
         if (ent->sub_last_update != 0) {
             info << tr("Last update: %1").arg(DisplayTime(ent->sub_last_update, QLocale::ShortFormat));
         }
-        auto subinfo = ParseSubInfo(ent->info);
-        if (!ent->info.isEmpty()) {
+        auto subinfo = ParseSubInfo(*ent);
+        if (!subinfo.isEmpty()) {
             info << subinfo;
         }
         if (info.isEmpty()) {
@@ -113,23 +99,38 @@ void GroupItem::on_update_sub_clicked() {
 void GroupItem::on_edit_clicked() {
     auto dialog = new DialogEditGroup(ent, parentWindow);
     connect(dialog, &QDialog::finished, this, [=,this] {
-        if (dialog->result() == QDialog::Accepted) {
-            Configs::dataManager->groupsRepo->Save(ent);
-            refresh_data();
-            MW_dialog_message(MwMessage::GroupsChanged, {});
-        }
         dialog->deleteLater();
+        if (dialog->result() != QDialog::Accepted) return;
+        if (!Configs::dataManager->groupsRepo->Save(ent)) {
+            MessageBoxWarning(software_name, tr("This group was deleted while you were editing it."));
+            return;
+        }
+        refresh_data();
+        MW_dialog_message(MwMessage::GroupsChanged, dialog->RestartNeeded() ? QStringList{MwArg::RestartProxy} : QStringList{});
     });
     dialog->show();
 }
 
 void GroupItem::on_remove_clicked() {
-    if (Configs::dataManager->groupsRepo->GetAllGroupIds().size() <= 1) return;
-    if (QMessageBox::question(this, tr("Confirmation"), tr("Remove %1?").arg(ent->name)) ==
-        QMessageBox::StandardButton::Yes) {
-        GetMainWindow()->profile_stop(false, true, false);
-        Configs::dataManager->groupsRepo->DeleteGroup(ent->id);
-        MW_dialog_message(MwMessage::GroupsChanged, {});
-        delete item;
+    auto *manage = qobject_cast<DialogManageGroups *>(parentWindow);
+    if (manage == nullptr) return;
+    const int id = ent->id;
+    if (const auto error = manage->deleteGroup(id, true)) {
+        if (error->code != QLatin1String("last_group")) MessageBoxWarning(software_name, GroupDeleteRefusalText(*error));
+        return;
     }
+    // The question box and a blocking stop run nested loops, where a refresh may remove this row; the box hangs off the dialog.
+    const QPointer<GroupItem> self(this);
+    if (QMessageBox::question(manage, tr("Confirmation"), tr("Remove %1?").arg(ent->name)) != QMessageBox::StandardButton::Yes || self == nullptr) {
+        return;
+    }
+    if (const auto running = Engine::host()->connection()->runningSnapshot(); running != nullptr && running->gid == id) {
+        Engine::host()->connection()->stop({.block = true});
+        if (self == nullptr) return;
+    }
+    if (const auto error = manage->deleteGroup(id)) {
+        MessageBoxWarning(software_name, GroupDeleteRefusalText(*error));
+        return;
+    }
+    manage->refreshGroups();
 }

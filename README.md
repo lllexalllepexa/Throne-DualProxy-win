@@ -1,4 +1,4 @@
-# Throne (Formerly Nekoray)
+# Throne
 
 > ### 💡 Зачем вообще нужен этот форк? (Why this fork?)
 > Главная фича этого форка — **нативный режим «Dual Proxy»**: одновременный запуск двух независимых прокси-серверов на разных локальных портах (например, `2080` и `2081`) с назначением в 1 клик через контекстное меню, выбором портов прямо из UI, защитой от сбоев и раздельным отображением стран и соединений.
@@ -9,22 +9,52 @@ Qt based Desktop cross-platform GUI proxy utility, empowered by [Sing-box](https
 
 Supports Windows 11/10/8/7 / Linux / MacOS out of the box.
 
+Now supporting headless mode, running as a service or in a container, controlled with [thronectl](https://github.com/throneproj/Throne-api): see [Headless Throne](https://throneproj.github.io/headless/).
+
 <img width="1002" height="789" alt="image" src="https://github.com/user-attachments/assets/af4a8e32-7e55-430c-9402-ec2d665cf71a" />
 
 ### Note on MacOS releases
-Apple platforms have a very strict security policy and since Throne does not have a signed certificate, you will have to remove the quarantine using `xattr -d com.apple.quarantine /path/to/throne.app`. Move `Throne.app` to `/Applications` before the first launch — the built-in privilege escalation opens `Terminal` to make the core setuid-root, and that step can fail while the app is still inside `~/Downloads`.
+Apple platforms have a very strict security policy and since Throne does not have a signed certificate, you will have to remove the quarantine using `xattr -d com.apple.quarantine /path/to/throne.app`. Move `Throne.app` to `/Applications` before the first launch — the built-in privilege escalation opens `Terminal` to make the core setuid-root, and that step can fail while the app is still inside `~/Downloads`. The [Homebrew cask](#macos-homebrew) does both for you.
 
 ### GitHub Releases (Portable ZIP)
 
 [![GitHub All Releases](https://img.shields.io/github/downloads/throneproj/Throne/total?label=downloads-total&logo=github&style=flat-square)](https://github.com/throneproj/Throne/releases)
 
-# Linux CLI installer
+### Linux CLI installer
 ```bash
 curl -fsSL https://raw.githubusercontent.com/throneproj/Throne/dev/script/install_linux.py | sudo python3
 ```
 
-### RPM repository
-[Throne RPM repository](https://parhelia512.github.io/) for Fedora/RHEL and openSUSE/SLE.
+### Linux package repositories
+Every stable release is published to signed APT and RPM repositories (the system-Qt packages, x64 and ARM64) and to the AUR, so your package manager keeps Throne up to date. See the [installation guide](https://throneproj.github.io/get_started/installation/#apt-repository) for details.
+
+Debian / Ubuntu:
+```bash
+sudo install -d -m 0755 /etc/apt/keyrings
+sudo curl -fsSLo /etc/apt/keyrings/throne.asc https://throneproj.github.io/Throne/throne.asc
+sudo curl -fsSLo /etc/apt/sources.list.d/throne.list https://throneproj.github.io/Throne/apt/throne.list
+sudo apt update && sudo apt install throne
+```
+
+Fedora / RHEL 9+:
+```bash
+sudo curl -fsSLo /etc/yum.repos.d/throne.repo https://throneproj.github.io/Throne/rpm/throne.repo
+sudo dnf install throne --refresh
+```
+
+openSUSE / SLES:
+```bash
+sudo zypper addrepo -fc https://throneproj.github.io/Throne/rpm/throne.repo
+sudo zypper install throne
+```
+
+Arch Linux (AUR): `yay -S throne` or `paru -S throne`
+
+### macOS (Homebrew)
+Every stable release is also published to Throne's own Homebrew tap (macOS 13 or newer, Apple Silicon and Intel). The cask installs `Throne.app` to `/Applications` and removes the quarantine flag; update with `brew upgrade --cask throne`. See the [installation guide](https://throneproj.github.io/get_started/installation/#homebrew) for details.
+```bash
+brew install --cask throneproj/tap/throne
+```
 
 ## Supported protocols
 
@@ -46,8 +76,10 @@ curl -fsSL https://raw.githubusercontent.com/throneproj/Throne/dev/script/instal
 - ShadowTLS
 - Wireguard
 - AmneziaWG
+- MASQUE
 - SSH
 - Xray VLESS
+- OpenVPN/OpenConnect
 - Custom Outbound (Both Sing-box and Xray)
 - Custom Config (Both Sing-box and Xray)
 - Chaining outbounds
@@ -68,7 +100,6 @@ Deeplinks are also supported, read the [documentation](https://throneproj.github
 - [simple-protobuf](https://github.com/tonda-kriz/simple-protobuf)
 - [fkYAML](https://github.com/fktn-k/fkYAML)
 - [quirc](https://github.com/dlbeer/quirc)
-- [QHotkey](https://github.com/Skycoder42/QHotkey)
 - [srombauts/sqlitecpp](https://github.com/srombauts/sqlitecpp)
 
 ## FAQ
@@ -77,7 +108,6 @@ Nekoray's developer partially abandoned the project on December of 2023, some mi
 
 **Why does my Anti-Virus detect Throne and/or its Core as malware?** <br/>
 Throne's built-in update functionallity downloads the new release, removes the old files and replaces them with the new ones, which is quite simliar to what malwares do, remove your files and replace them with an encrypted version of your files.
-Also the `System DNS` feature will change your system's DNS settings, which is also considered a dangerous action by some Anti-Virus applications.
 
 **Is setting the `SUID` bit really needed on Linux?** <br/>
 To create and manage a system TUN interface, root access is required, without it, you will have to grant the Core some `Cap_xxx_admin` and still, need to enter your password 3 to 4 times per TUN activation. You can also opt to disable the automatic privilege escalation in `Basic Settings`->`Security`, but note that features that require root access will stop working unless you manually grant the needed permissions.

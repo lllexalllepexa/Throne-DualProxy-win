@@ -10,7 +10,10 @@ namespace Configs {
     class GroupsRepo;
     class ProfilesRepo;
     class OtpProfilesRepo;
+    class IpListsRepo;
+    class IpScansRepo;
     class TrafficStatsRepo;
+    class MarkersRepo;
 
     void initDB(const std::string& dbPath);
 
@@ -18,6 +21,8 @@ namespace Configs {
     private:
         Database db;
         Database statsDb;
+        // Same file as db; transactions are per connection, so scanner writes never interleave with the other repos' BEGIN.
+        Database scanDb;
 
         static void createEntityIdsTable(Database& db);
         static bool entityIdsColumnExists(Database& db, const char* columnName);
@@ -27,6 +32,7 @@ namespace Configs {
         static QString statsDbUnusableReason(const std::string& path);
         static void quarantineDbFile(const std::string& path);
         void initializeRepos();
+        void applyMigrations();
     public:
         std::unique_ptr<ProfilesRepo> profilesRepo;
         std::unique_ptr<GroupsRepo> groupsRepo;
@@ -34,6 +40,9 @@ namespace Configs {
         std::unique_ptr<OtpProfilesRepo> otpProfilesRepo;
         std::unique_ptr<SettingsRepo> settingsRepo;
         std::unique_ptr<TrafficStatsRepo> trafficStatsRepo;
+        std::unique_ptr<MarkersRepo> markersRepo;
+        std::unique_ptr<IpListsRepo> ipListsRepo;
+        std::unique_ptr<IpScansRepo> ipScansRepo;
 
         explicit DatabaseManager(const std::string& dbPath);
         ~DatabaseManager() = default;

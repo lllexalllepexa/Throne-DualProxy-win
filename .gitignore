@@ -88,5 +88,7 @@ out
 /libs
 srslist.h
 .claude
-/dist
-*.zip
+.qtcreator
+# Local release output; dist/ is upstream's tracked packaging tree.
+/release/
+/*.zip

@@ -72,12 +72,18 @@
              <property name="text">
               <string>Type</string>
              </property>
+             <property name="buddy">
+              <cstring>type</cstring>
+             </property>
             </widget>
            </item>
            <item row="3" column="0">
             <widget class="QLabel" name="port_l">
              <property name="text">
               <string>Port</string>
+             </property>
+             <property name="buddy">
+              <cstring>port</cstring>
              </property>
             </widget>
            </item>
@@ -86,12 +92,18 @@
              <property name="text">
               <string>Address</string>
              </property>
+             <property name="buddy">
+              <cstring>address</cstring>
+             </property>
             </widget>
            </item>
            <item row="1" column="0">
-            <widget class="QLabel" name="label">
+            <widget class="QLabel" name="name_l">
              <property name="text">
               <string>Name</string>
+             </property>
+             <property name="buddy">
+              <cstring>name</cstring>
              </property>
             </widget>
            </item>
@@ -166,6 +178,9 @@
               <property name="text">
                <string>Network</string>
               </property>
+              <property name="buddy">
+               <cstring>xray_network</cstring>
+              </property>
              </widget>
             </item>
             <item row="0" column="1">
@@ -176,6 +191,9 @@
               <property name="text">
                <string>Security</string>
               </property>
+              <property name="buddy">
+               <cstring>xray_security</cstring>
+              </property>
              </widget>
             </item>
             <item row="1" column="1">
@@ -185,6 +203,9 @@
              <widget class="QLabel" name="label_xray_finalmask">
               <property name="text">
                <string>Finalmask</string>
+              </property>
+              <property name="buddy">
+               <cstring>xray_finalmask_edit</cstring>
               </property>
              </widget>
             </item>
@@ -205,6 +226,9 @@
              <widget class="QLabel" name="label_17">
               <property name="text">
                <string>Multiplex</string>
+              </property>
+              <property name="buddy">
+               <cstring>xray_mux</cstring>
               </property>
              </widget>
             </item>
@@ -261,6 +285,9 @@
              <property name="text">
               <string>Multiplex</string>
              </property>
+             <property name="buddy">
+              <cstring>multiplex</cstring>
+             </property>
             </widget>
            </item>
            <item row="1" column="0">
@@ -270,6 +297,9 @@
              </property>
              <property name="text">
               <string>Security</string>
+             </property>
+             <property name="buddy">
+              <cstring>security</cstring>
              </property>
             </widget>
            </item>
@@ -294,6 +324,9 @@
              </property>
              <property name="text">
               <string>Network</string>
+             </property>
+             <property name="buddy">
+              <cstring>network</cstring>
              </property>
             </widget>
            </item>
@@ -324,11 +357,6 @@
                <verstretch>0</verstretch>
               </sizepolicy>
              </property>
-             <item>
-              <property name="text">
-               <string notr="true"/>
-              </property>
-             </item>
              <item>
               <property name="text">
                <string notr="true">tcp</string>
@@ -384,7 +412,7 @@
              </widget>
             </item>
             <item>
-             <widget class="QWidget" name="widget" native="true">
+             <widget class="QWidget" name="brutal_speed_w" native="true">
               <layout class="QGridLayout" name="gridLayout_3">
                <property name="leftMargin">
                 <number>0</number>
@@ -409,6 +437,9 @@
                  <property name="text">
                   <string>Brutal Download Speed</string>
                  </property>
+                 <property name="buddy">
+                  <cstring>brutal_d_speed</cstring>
+                 </property>
                 </widget>
                </item>
                <item row="0" column="2">
@@ -425,6 +456,9 @@
                 <widget class="QLabel" name="label_4">
                  <property name="text">
                   <string>Brutal Upload Speed</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>brutal_u_speed</cstring>
                  </property>
                 </widget>
                </item>
@@ -517,12 +551,18 @@
            <property name="text">
             <string notr="true">Path</string>
            </property>
+           <property name="buddy">
+            <cstring>path</cstring>
+           </property>
           </widget>
          </item>
          <item row="5" column="0">
           <widget class="QLabel" name="ws_early_data_name_l">
            <property name="text">
             <string notr="true">EarlyData Name</string>
+           </property>
+           <property name="buddy">
+            <cstring>ws_early_data_name</cstring>
            </property>
           </widget>
          </item>
@@ -549,12 +589,18 @@
            <property name="text">
             <string notr="true">header</string>
            </property>
+           <property name="buddy">
+            <cstring>headers</cstring>
+           </property>
           </widget>
          </item>
          <item row="4" column="0">
           <widget class="QLabel" name="ws_early_data_length_l">
            <property name="text">
             <string notr="true">EarlyData Length</string>
+           </property>
+           <property name="buddy">
+            <cstring>ws_early_data_length</cstring>
            </property>
           </widget>
          </item>
@@ -565,6 +611,9 @@
            </property>
            <property name="text">
             <string notr="true">Host</string>
+           </property>
+           <property name="buddy">
+            <cstring>host</cstring>
            </property>
           </widget>
          </item>
@@ -579,12 +628,18 @@
            <property name="text">
             <string>Method</string>
            </property>
+           <property name="buddy">
+            <cstring>method</cstring>
+           </property>
           </widget>
          </item>
          <item row="8" column="0">
           <widget class="QLabel" name="service_name_l">
            <property name="text">
             <string>Service Name</string>
+           </property>
+           <property name="buddy">
+            <cstring>service_name</cstring>
            </property>
           </widget>
          </item>
@@ -648,6 +703,9 @@
              <property name="text">
               <string>Certificate</string>
              </property>
+             <property name="buddy">
+              <cstring>certificate_edit</cstring>
+             </property>
             </widget>
            </item>
            <item>
@@ -662,12 +720,15 @@
          <item>
           <layout class="QGridLayout" name="_3">
            <item row="1" column="0">
-            <widget class="QLabel" name="label_8">
+            <widget class="QLabel" name="alpn_l">
              <property name="toolTip">
               <string>Application layer protocol negotiation, clear text. Please separate them with commas.</string>
              </property>
              <property name="text">
               <string notr="true">ALPN</string>
+             </property>
+             <property name="buddy">
+              <cstring>alpn</cstring>
              </property>
             </widget>
            </item>
@@ -684,6 +745,9 @@
              </property>
              <property name="text">
               <string notr="true">SNI</string>
+             </property>
+             <property name="buddy">
+              <cstring>sni</cstring>
              </property>
             </widget>
            </item>
@@ -714,7 +778,7 @@
           <number>7</number>
          </property>
          <item>
-          <widget class="QWidget" name="widget" native="true">
+          <widget class="QWidget" name="tls_camouflage_w" native="true">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
              <horstretch>0</horstretch>
@@ -757,6 +821,9 @@
                  <property name="text">
                   <string>Fragment</string>
                  </property>
+                 <property name="buddy">
+                  <cstring>fragment</cstring>
+                 </property>
                 </widget>
                </item>
                <item>
@@ -782,12 +849,15 @@
                 </widget>
                </item>
                <item>
-                <widget class="QLabel" name="label_3">
+                <widget class="QLabel" name="tls_frag_fall_delay_l">
                  <property name="toolTip">
                   <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;time format, like 500ms, 10ms etc&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                  </property>
                  <property name="text">
                   <string>Fallback Delay</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>tls_frag_fall_delay</cstring>
                  </property>
                 </widget>
                </item>
@@ -823,6 +893,9 @@
                 <widget class="QLabel" name="tls_tricks_l">
                  <property name="text">
                   <string>TLS Tricks</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>tls_tricks</cstring>
                  </property>
                 </widget>
                </item>
@@ -864,7 +937,7 @@
              <number>7</number>
             </property>
             <item row="0" column="0">
-             <widget class="QLabel" name="label_2">
+             <widget class="QLabel" name="utlsFingerprint_l">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
                 <horstretch>0</horstretch>
@@ -873,6 +946,9 @@
               </property>
               <property name="text">
                <string notr="true">Fingerprint</string>
+              </property>
+              <property name="buddy">
+               <cstring>utlsFingerprint</cstring>
               </property>
              </widget>
             </item>
@@ -884,6 +960,23 @@
              </widget>
             </item>
             <item row="1" column="0">
+             <widget class="QLabel" name="cipher_suites_l">
+              <property name="text">
+               <string>Cipher Suites</string>
+              </property>
+              <property name="buddy">
+               <cstring>cipher_suites</cstring>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="MyLineEdit" name="cipher_suites">
+              <property name="toolTip">
+               <string>Colon-separated TLS 1.2 cipher suite names. A uTLS fingerprint ignores them; use the "unsafe" fingerprint (Go's own TLS stack) to apply them.</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="0">
              <widget class="QLabel" name="reality_pbk_l">
               <property name="toolTip">
                <string>Reality public key. If not empty, turn TLS into REALITY.</string>
@@ -891,12 +984,15 @@
               <property name="text">
                <string notr="true">Reality Pbk</string>
               </property>
+              <property name="buddy">
+               <cstring>reality_pbk</cstring>
+              </property>
              </widget>
             </item>
-            <item row="1" column="1">
+            <item row="2" column="1">
              <widget class="MyLineEdit" name="reality_pbk"/>
             </item>
-            <item row="2" column="0">
+            <item row="3" column="0">
              <widget class="QLabel" name="reality_sid_l">
               <property name="toolTip">
                <string>Reality short id. Accept only one value.</string>
@@ -904,9 +1000,12 @@
               <property name="text">
                <string>Reality SID</string>
               </property>
+              <property name="buddy">
+               <cstring>reality_sid</cstring>
+              </property>
              </widget>
             </item>
-            <item row="2" column="1">
+            <item row="3" column="1">
              <widget class="QLineEdit" name="reality_sid"/>
             </item>
            </layout>
@@ -935,6 +1034,9 @@
               <property name="text">
                <string>SNI</string>
               </property>
+              <property name="buddy">
+               <cstring>xray_sni</cstring>
+              </property>
              </widget>
             </item>
             <item row="0" column="1">
@@ -944,6 +1046,9 @@
              <widget class="QLabel" name="label_12">
               <property name="text">
                <string>Fingerprint</string>
+              </property>
+              <property name="buddy">
+               <cstring>xray_fp</cstring>
               </property>
              </widget>
             </item>
@@ -961,6 +1066,9 @@
               <property name="text">
                <string>ALPN</string>
               </property>
+              <property name="buddy">
+               <cstring>xray_alpn</cstring>
+              </property>
              </widget>
             </item>
             <item row="0" column="1">
@@ -970,6 +1078,9 @@
              <widget class="QLabel" name="label_xray_pcs">
               <property name="text">
                <string>Pinned Cert SHA256</string>
+              </property>
+              <property name="buddy">
+               <cstring>xray_pinned_peer_cert_sha256</cstring>
               </property>
              </widget>
             </item>
@@ -985,12 +1096,49 @@
               <property name="text">
                <string>Verify Cert Name</string>
               </property>
+              <property name="buddy">
+               <cstring>xray_verify_peer_cert_by_name</cstring>
+              </property>
              </widget>
             </item>
             <item row="2" column="1">
              <widget class="QLineEdit" name="xray_verify_peer_cert_by_name">
               <property name="toolTip">
                <string>verifyPeerCertByName: verify the peer certificate against this name instead of the SNI.</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="0">
+             <widget class="QLabel" name="label_xray_ech">
+              <property name="text">
+               <string>ECH Config List</string>
+              </property>
+              <property name="buddy">
+               <cstring>xray_ech_config_list</cstring>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="1">
+             <widget class="QLineEdit" name="xray_ech_config_list">
+              <property name="toolTip">
+               <string>echConfigList: a base64 ECHConfigList, or "domain+https://dns/dns-query" to let Xray fetch it over DoH (e.g. cloudflare-ech.com+https://8.8.8.8/dns-query).</string>
+              </property>
+             </widget>
+            </item>
+            <item row="4" column="0">
+             <widget class="QLabel" name="label_xray_cs">
+              <property name="text">
+               <string>Cipher Suites</string>
+              </property>
+              <property name="buddy">
+               <cstring>xray_cipher_suites</cstring>
+              </property>
+             </widget>
+            </item>
+            <item row="4" column="1">
+             <widget class="QLineEdit" name="xray_cipher_suites">
+              <property name="toolTip">
+               <string>cipherSuites: colon-separated TLS 1.2 cipher suite names, including Go's insecure ones. Only applied with the "unsafe" fingerprint.</string>
               </property>
              </widget>
             </item>
@@ -1005,6 +1153,9 @@
               <property name="text">
                <string>Reality Pbk</string>
               </property>
+              <property name="buddy">
+               <cstring>xray_reality_pbk</cstring>
+              </property>
              </widget>
             </item>
             <item row="0" column="1">
@@ -1015,6 +1166,9 @@
               <property name="text">
                <string>Reality SID</string>
               </property>
+              <property name="buddy">
+               <cstring>xray_reality_sid</cstring>
+              </property>
              </widget>
             </item>
             <item row="1" column="1">
@@ -1024,6 +1178,9 @@
              <widget class="QLabel" name="label_16">
               <property name="text">
                <string>Reality SpiderX</string>
+              </property>
+              <property name="buddy">
+               <cstring>xray_reality_spiderx</cstring>
               </property>
              </widget>
             </item>
@@ -1092,42 +1249,54 @@
                   <property name="text">
                    <string>Host</string>
                   </property>
+                  <property name="buddy">
+                   <cstring>xray_host</cstring>
+                  </property>
                  </widget>
                 </item>
-                <item row="3" column="0">
+                <item row="4" column="0">
                  <widget class="QLabel" name="xray_headers_l">
                   <property name="text">
                    <string>Headers</string>
+                  </property>
+                  <property name="buddy">
+                   <cstring>xray_headers</cstring>
                   </property>
                  </widget>
                 </item>
                 <item row="0" column="1">
                  <widget class="QLineEdit" name="xray_host"/>
                 </item>
-                <item row="0" column="3">
+                <item row="1" column="1">
                  <widget class="QLineEdit" name="xray_path"/>
                 </item>
-                <item row="3" column="1">
+                <item row="4" column="1">
                  <widget class="QLineEdit" name="xray_headers"/>
                 </item>
-                <item row="0" column="2">
+                <item row="1" column="0">
                  <widget class="QLabel" name="xray_path_l">
                   <property name="text">
                    <string>Path</string>
                   </property>
+                  <property name="buddy">
+                   <cstring>xray_path</cstring>
+                  </property>
                  </widget>
                 </item>
-                <item row="1" column="0">
+                <item row="2" column="0">
                  <widget class="QLabel" name="xray_ed_label">
                   <property name="text">
                    <string>EarlyData Length</string>
                   </property>
+                  <property name="buddy">
+                   <cstring>xray_ed_length</cstring>
+                  </property>
                  </widget>
                 </item>
-                <item row="1" column="1">
+                <item row="2" column="1">
                  <widget class="QLineEdit" name="xray_ed_length"/>
                 </item>
-                <item row="2" column="0">
+                <item row="3" column="0">
                  <widget class="QCheckBox" name="xray_multi_mode">
                   <property name="text">
                    <string>Multi Mode</string>
@@ -1159,19 +1328,25 @@
                   </property>
                   <layout class="QGridLayout" name="gridLayout_xray_xhttp_common">
                    <item row="0" column="0">
-                    <widget class="QLabel" name="label_21">
+                    <widget class="QLabel" name="xray_mode_l">
                      <property name="text">
                       <string>Mode</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_mode</cstring>
                      </property>
                     </widget>
                    </item>
                    <item row="0" column="1">
-                    <widget class="QComboBox" name="xray_mode"/>
+                    <widget class="NoWheelComboBox" name="xray_mode"/>
                    </item>
                    <item row="0" column="2">
-                    <widget class="QLabel" name="label_23">
+                    <widget class="QLabel" name="xray_xpaddingbytes_l">
                      <property name="text">
                       <string>X Padding Bytes</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_xpaddingbytes</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1182,6 +1357,9 @@
                     <widget class="QLabel" name="xray_serverMaxHeaderBytes_l">
                      <property name="text">
                       <string>Server Max Header Bytes</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_serverMaxHeaderBytes</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1215,25 +1393,34 @@
                      <property name="text">
                       <string>xPaddingMethod</string>
                      </property>
+                     <property name="buddy">
+                      <cstring>xray_xpadding_method</cstring>
+                     </property>
                     </widget>
                    </item>
                    <item row="1" column="1">
-                    <widget class="QComboBox" name="xray_xpadding_method"/>
+                    <widget class="NoWheelComboBox" name="xray_xpadding_method"/>
                    </item>
                    <item row="1" column="2">
                     <widget class="QLabel" name="label_xpadding_placement">
                      <property name="text">
                       <string>xPaddingPlacement</string>
                      </property>
+                     <property name="buddy">
+                      <cstring>xray_xpadding_placement</cstring>
+                     </property>
                     </widget>
                    </item>
                    <item row="1" column="3">
-                    <widget class="QComboBox" name="xray_xpadding_placement"/>
+                    <widget class="NoWheelComboBox" name="xray_xpadding_placement"/>
                    </item>
                    <item row="2" column="0">
                     <widget class="QLabel" name="label_xpadding_key">
                      <property name="text">
                       <string>xPaddingKey</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_xpadding_key</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1244,6 +1431,9 @@
                     <widget class="QLabel" name="label_xpadding_header">
                      <property name="text">
                       <string>xPaddingHeader</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_xpadding_header</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1266,9 +1456,12 @@
                   </property>
                   <layout class="QGridLayout" name="gridLayout_xray_xhttp_packet">
                    <item row="1" column="0">
-                    <widget class="QLabel" name="label_24">
+                    <widget class="QLabel" name="xray_scMaxEachPostBytes_l">
                      <property name="text">
                       <string>scMaxEachPostBytes</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_scMaxEachPostBytes</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1276,9 +1469,12 @@
                     <widget class="QLineEdit" name="xray_scMaxEachPostBytes"/>
                    </item>
                    <item row="1" column="2">
-                    <widget class="QLabel" name="label_25">
+                    <widget class="QLabel" name="xray_scMinPostsIntervalMs_l">
                      <property name="text">
                       <string>scMinPostsIntervalMs</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_scMinPostsIntervalMs</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1290,6 +1486,9 @@
                      <property name="text">
                       <string>scMaxBufferedPosts</string>
                      </property>
+                     <property name="buddy">
+                      <cstring>xray_scMaxBufferedPosts</cstring>
+                     </property>
                     </widget>
                    </item>
                    <item row="2" column="1">
@@ -1300,25 +1499,34 @@
                      <property name="text">
                       <string>uplinkHTTPMethod</string>
                      </property>
+                     <property name="buddy">
+                      <cstring>xray_uplink_http_method</cstring>
+                     </property>
                     </widget>
                    </item>
                    <item row="2" column="3">
-                    <widget class="QComboBox" name="xray_uplink_http_method"/>
+                    <widget class="NoWheelComboBox" name="xray_uplink_http_method"/>
                    </item>
                    <item row="3" column="0">
                     <widget class="QLabel" name="xray_uplink_data_placement_l">
                      <property name="text">
                       <string>uplinkDataPlacement</string>
                      </property>
+                     <property name="buddy">
+                      <cstring>xray_uplink_data_placement</cstring>
+                     </property>
                     </widget>
                    </item>
                    <item row="3" column="1">
-                    <widget class="QComboBox" name="xray_uplink_data_placement"/>
+                    <widget class="NoWheelComboBox" name="xray_uplink_data_placement"/>
                    </item>
                    <item row="3" column="2">
                     <widget class="QLabel" name="xray_uplink_data_key_l">
                      <property name="text">
                       <string>uplinkDataKey</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_uplink_data_key</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1329,6 +1537,9 @@
                     <widget class="QLabel" name="xray_uplink_chunk_size_l">
                      <property name="text">
                       <string>uplinkChunkSize</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_uplink_chunk_size</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1354,6 +1565,9 @@
                      <property name="text">
                       <string>scStreamUpServerSecs</string>
                      </property>
+                     <property name="buddy">
+                      <cstring>xray_scStreamUpServerSecs</cstring>
+                     </property>
                     </widget>
                    </item>
                    <item row="5" column="1">
@@ -1364,15 +1578,21 @@
                      <property name="text">
                       <string>sessionPlacement</string>
                      </property>
+                     <property name="buddy">
+                      <cstring>xray_session_placement</cstring>
+                     </property>
                     </widget>
                    </item>
                    <item row="6" column="1">
-                    <widget class="QComboBox" name="xray_session_placement"/>
+                    <widget class="NoWheelComboBox" name="xray_session_placement"/>
                    </item>
                    <item row="6" column="2">
                     <widget class="QLabel" name="xray_session_key_l">
                      <property name="text">
                       <string>sessionKey</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_session_key</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1384,6 +1604,9 @@
                      <property name="text">
                       <string>sessionIDTable</string>
                      </property>
+                     <property name="buddy">
+                      <cstring>xray_session_id_table</cstring>
+                     </property>
                     </widget>
                    </item>
                    <item row="7" column="1">
@@ -1393,6 +1616,9 @@
                     <widget class="QLabel" name="xray_session_id_length_l">
                      <property name="text">
                       <string>sessionIDLength</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_session_id_length</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1404,15 +1630,21 @@
                      <property name="text">
                       <string>seqPlacement</string>
                      </property>
+                     <property name="buddy">
+                      <cstring>xray_seq_placement</cstring>
+                     </property>
                     </widget>
                    </item>
                    <item row="8" column="1">
-                    <widget class="QComboBox" name="xray_seq_placement"/>
+                    <widget class="NoWheelComboBox" name="xray_seq_placement"/>
                    </item>
                    <item row="8" column="2">
                     <widget class="QLabel" name="xray_seq_key_l">
                      <property name="text">
                       <string>seqKey</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_seq_key</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1420,9 +1652,12 @@
                     <widget class="QLineEdit" name="xray_seq_key"/>
                    </item>
                    <item row="9" column="0">
-                    <widget class="QLabel" name="label_32">
+                    <widget class="QLabel" name="xray_downloadsettings_l">
                      <property name="text">
                       <string>Download Settings</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_downloadsettings_edit</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1449,9 +1684,12 @@
                   </property>
                   <layout class="QGridLayout" name="gridLayout_xray_xhttp_xmux">
                    <item row="0" column="0">
-                    <widget class="QLabel" name="label_26">
+                    <widget class="QLabel" name="xray_max_concurrency_l">
                      <property name="text">
                       <string>maxConcurrency</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_max_concurrency</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1459,9 +1697,12 @@
                     <widget class="QLineEdit" name="xray_max_concurrency"/>
                    </item>
                    <item row="0" column="2">
-                    <widget class="QLabel" name="label_31">
+                    <widget class="QLabel" name="xray_max_connections_l">
                      <property name="text">
                       <string>maxConnections</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_max_connections</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1469,9 +1710,12 @@
                     <widget class="QLineEdit" name="xray_max_connections"/>
                    </item>
                    <item row="1" column="0">
-                    <widget class="QLabel" name="label_27">
+                    <widget class="QLabel" name="xray_hMaxRequestTimes_l">
                      <property name="text">
                       <string>hMaxRequestTimes</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_hMaxRequestTimes</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1479,9 +1723,12 @@
                     <widget class="QLineEdit" name="xray_hMaxRequestTimes"/>
                    </item>
                    <item row="1" column="2">
-                    <widget class="QLabel" name="label_28">
+                    <widget class="QLabel" name="xray_hMaxReusableSecs_l">
                      <property name="text">
                       <string>hMaxReusableSecs</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_hMaxReusableSecs</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1489,9 +1736,12 @@
                     <widget class="QLineEdit" name="xray_hMaxReusableSecs"/>
                    </item>
                    <item row="2" column="0">
-                    <widget class="QLabel" name="label_29">
+                    <widget class="QLabel" name="xray_max_reuse_times_l">
                      <property name="text">
                       <string>cMaxReuseTimes</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_max_reuse_times</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1499,9 +1749,12 @@
                     <widget class="QLineEdit" name="xray_max_reuse_times"/>
                    </item>
                    <item row="2" column="2">
-                    <widget class="QLabel" name="label_30">
+                    <widget class="QLabel" name="xray_keep_alive_period_l">
                      <property name="text">
                       <string>hKeepAlivePeriod</string>
+                     </property>
+                     <property name="buddy">
+                      <cstring>xray_keep_alive_period</cstring>
                      </property>
                     </widget>
                    </item>
@@ -1513,6 +1766,19 @@
                 </item>
                </layout>
               </widget>
+             </item>
+             <item>
+              <spacer name="verticalSpacer_xray_network">
+               <property name="orientation">
+                <enum>Qt::Orientation::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>0</height>
+                </size>
+               </property>
+              </spacer>
              </item>
             </layout>
            </widget>
@@ -1528,6 +1794,11 @@
  </widget>
  <customwidgets>
   <customwidget>
+   <class>NoWheelComboBox</class>
+   <extends>QComboBox</extends>
+   <header>include/ui/utils/NoWheelComboBox.h</header>
+  </customwidget>
+  <customwidget>
    <class>MyLineEdit</class>
    <extends>QLineEdit</extends>
    <header>include/ui/utils/MyLineEdit.h</header>
@@ -1541,9 +1812,9 @@
   <tabstop>advanced_button</tabstop>
   <tabstop>fake</tabstop>
   <tabstop>xray_network</tabstop>
-   <tabstop>xray_security</tabstop>
-   <tabstop>xray_finalmask_edit</tabstop>
-   <tabstop>xray_mux</tabstop>
+  <tabstop>xray_security</tabstop>
+  <tabstop>xray_finalmask_edit</tabstop>
+  <tabstop>xray_mux</tabstop>
   <tabstop>network</tabstop>
   <tabstop>security</tabstop>
   <tabstop>multiplex</tabstop>
@@ -1566,6 +1837,7 @@
   <tabstop>tls_rec_frag</tabstop>
   <tabstop>tls_tricks</tabstop>
   <tabstop>utlsFingerprint</tabstop>
+  <tabstop>cipher_suites</tabstop>
   <tabstop>reality_pbk</tabstop>
   <tabstop>reality_sid</tabstop>
   <tabstop>xray_sni</tabstop>
@@ -1573,6 +1845,8 @@
   <tabstop>xray_alpn</tabstop>
   <tabstop>xray_pinned_peer_cert_sha256</tabstop>
   <tabstop>xray_verify_peer_cert_by_name</tabstop>
+  <tabstop>xray_ech_config_list</tabstop>
+  <tabstop>xray_cipher_suites</tabstop>
   <tabstop>xray_reality_pbk</tabstop>
   <tabstop>xray_reality_sid</tabstop>
   <tabstop>xray_reality_spiderx</tabstop>

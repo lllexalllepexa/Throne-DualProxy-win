@@ -1,5 +1,7 @@
 #include "include/configs/common/OutboundFactory.h"
 
+#include <QCoreApplication>
+
 #include "include/configs/outbounds/socks.h"
 #include "include/configs/outbounds/http.h"
 #include "include/configs/outbounds/shadowsocks.h"
@@ -18,6 +20,7 @@
 #include "include/configs/outbounds/snell.h"
 #include "include/configs/outbounds/shadowtls.h"
 #include "include/configs/outbounds/wireguard.h"
+#include "include/configs/outbounds/masque.h"
 #include "include/configs/outbounds/openvpn.h"
 #include "include/configs/outbounds/openconnect.h"
 #include "include/configs/outbounds/tailscale.h"
@@ -49,6 +52,7 @@ namespace Configs
         if (type == "snell") return new snell();
         if (type == "shadowtls") return new shadowtls();
         if (type == "wireguard") return new wireguard();
+        if (type == "masque") return new masque();
         if (type == "openvpn") return new openvpn();
         if (type == "openconnect") return new openconnect();
         if (type == "tailscale") return new tailscale();
@@ -60,5 +64,16 @@ namespace Configs
         auto* ob = new outbound();
         ob->invalid = true;
         return ob;
+    }
+
+    QString RefusedForeignType(const QString& type)
+    {
+        if (type == "extracore")
+            return QCoreApplication::translate("Validation", "Refused to import an Extra Core profile: it would run a program on this computer.");
+        if (type == "chain")
+            return QCoreApplication::translate("Validation", "Refused to import a Chain Proxy profile: its hops are profiles of another installation.");
+        if (type == "autoselector")
+            return QCoreApplication::translate("Validation", "Refused to import an Auto Selector profile: the group it tracks belongs to another installation.");
+        return {};
     }
 }

@@ -4,6 +4,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QFile>
 #include <QGuiApplication>
 #include <QItemSelectionModel>
@@ -14,9 +15,12 @@
 #include <QMutex>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScreen>
 #include <QScrollBar>
+#include <QTabWidget>
 #include <QThread>
 #include <QThreadPool>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -32,9 +36,12 @@
 #include "include/configs/sub/GroupUpdater.hpp"
 #include "include/database/GroupsRepo.h"
 #include "include/database/ProfilesRepo.h"
+#include "include/engine/EngineHost.h"
+#include "include/engine/services/ProfileService.h"
 #include "include/ui/mainWindow/MainWindowInternal.h"
 #include "include/ui/profile/dialog_edit_profile.h"
 #include "include/ui/utils/ProfilesTableModel.h"
+#include "include/ui/widget/json/JsonCodeEdit.h"
 
 namespace {
     constexpr int removeListPreviewLimit = 20;
@@ -44,9 +51,7 @@ void MainWindow::on_profilesTableView_doubleClicked(const QModelIndex &index) {
     if (!index.isValid() || !profilesTableModel) return;
     int id = index.data(ProfilesTableModel::ProfileIdRole).toInt();
     if (select_mode) {
-        emit profile_selected(id);
-        select_mode = false;
-        refresh_status();
+        finish_select_mode(id);
         return;
     }
     auto dialog = new DialogEditProfile("", id, this);
@@ -70,13 +75,7 @@ void MainWindow::on_menu_clone_triggered() {
     auto btn = QMessageBox::question(this, tr("Clone"), tr("Clone %1 item(s)").arg(entIDs.count()));
     if (btn != QMessageBox::Yes) return;
 
-    QStringList sls;
-    auto ents = Configs::dataManager->profilesRepo->GetProfileBatch(entIDs);
-    for (const auto &ent: ents) {
-        sls << ent->outbound->ExportJsonLink();
-    }
-
-    Subscription::updater()->ImportText(sls.join("\n"));
+    Subscription::updater()->CloneProfiles(entIDs);
 }
 
 void MainWindow::on_menu_delete_repeat_triggered() {
@@ -107,7 +106,6 @@ void MainWindow::on_menu_delete_repeat_triggered() {
             newOrder += id;
             continue;
         }
-        // A repeated slot loses the row but keeps the profile; only a distinct id is deleted.
         if (!repeatedSlot) del_ids += id;
         if (const auto ent = byId.value(id); ent != nullptr && remove_display_count < removeListPreviewLimit) {
             remove_display += ent->outbound->DisplayTypeAndName() + " \n ";
@@ -142,14 +140,13 @@ void MainWindow::on_menu_reset_traffic_triggered() {
     if (entIDs.count() == 0) return;
     auto ents = Configs::dataManager->profilesRepo->GetProfileBatch(entIDs);
     if (ents.empty()) return;
-    for (const auto& ent: ents) {
-        ent->ResetTraffic();
-        Configs::dataManager->profilesRepo->SaveTraffic(ent);
-    }
+    for (const auto& ent: ents) ent->ResetTraffic();
+    runOnNewThread([ents] { Configs::dataManager->profilesRepo->SaveTrafficBatch(ents); });
     if (auto group = Configs::dataManager->groupsRepo->GetGroup(ents.first()->gid); group &&
         group->calculated_column_width.size() > ProfilesTableModel::ColTraffic)
         group->calculated_column_width[ProfilesTableModel::ColTraffic] = 0;
     refresh_proxy_list(entIDs);
+    Configs::RepositionLater(ents, Configs::SortInput::Traffic);
 }
 
 void MainWindow::on_menu_copy_links_triggered() {
@@ -186,37 +183,49 @@ void MainWindow::on_menu_export_config_triggered() {
     auto ents = get_now_selected_list();
     if (ents.count() != 1) return;
     auto ent = Configs::dataManager->profilesRepo->GetProfile(ents.first());
+    if (ent == nullptr) return;
 
-    auto result = Configs::BuildSingBoxConfig(ent);
-    QString config_core = QJsonObject2QString(result->coreConfig, true);
-    QApplication::clipboard()->setText(config_core);
-
-    QMessageBox msg(QMessageBox::Information, tr("Config copied"), config_core);
-    QPushButton *button_1 = msg.addButton(tr("Copy core config"), QMessageBox::YesRole);
-    QPushButton *button_2 = msg.addButton(tr("Copy test config"), QMessageBox::YesRole);
-    msg.addButton(QMessageBox::Ok);
-    msg.setEscapeButton(QMessageBox::Ok);
-    msg.setDefaultButton(QMessageBox::Ok);
-    msg.exec();
-    if (msg.clickedButton() == button_1) {
-        result = BuildSingBoxConfig(ent);
-        if (!result->error.isEmpty()) {
-            MessageBoxWarning("Build config error", result->error);
-            return;
-        }
-        config_core = QJsonObject2QString(result->coreConfig, true);
-        QApplication::clipboard()->setText(config_core);
-    } else if (msg.clickedButton() == button_2) {
-        auto res = Configs::BuildTestConfig({ent});
-        if (!res->error.isEmpty()) {
-            MessageBoxWarning("Build Test config error", res->error);
-            return;
-        }
-        // An xray-full config is tested as its own box, so surface that wrapper here.
-        if (!res->xrayFullConfigs.isEmpty()) config_core = res->xrayFullConfigs.first();
-        else config_core = QJsonObject2QString(res->coreConfig, true);
-        QApplication::clipboard()->setText(config_core);
+    const auto result = Configs::BuildSingBoxConfig(ent);
+    if (!result->error.isEmpty()) {
+        MessageBoxWarning("Build config error", result->error);
+        return;
     }
+    // Taken from one build: the sing-box <-> Xray bridge ports and credentials are generated per build.
+    QStringList xrayConfigs = result->xrayFullConfigs;
+    if (!result->xrayConfig.isEmpty()) xrayConfigs.prepend(QJsonObject2QString(result->xrayConfig, false));
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Export config"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *tabs = new QTabWidget(&dialog);
+    const auto addConfigTab = [tabs](const QString &name, const QString &config) {
+        auto *view = new JsonEdit::JsonCodeEdit(tabs);
+        view->setReadOnly(true);
+        view->setPlainText(config);
+        tabs->addTab(view, name);
+    };
+    addConfigTab("sing-box", QJsonObject2QString(result->coreConfig, false));
+    for (int i = 0; i < xrayConfigs.size(); i++) {
+        addConfigTab(xrayConfigs.size() == 1 ? QString("Xray") : QString("Xray %1").arg(i + 1), xrayConfigs[i]);
+    }
+    layout->addWidget(tabs, 1);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    const QString copyText = tr("Copy");
+    const QString copiedText = tr("Copied");
+    auto *copy = buttons->addButton(copyText, QDialogButtonBox::ActionRole);
+    buttons->button(QDialogButtonBox::Close)->setDefault(true);
+    layout->addWidget(buttons);
+
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(copy, &QPushButton::clicked, &dialog, [=] {
+        QApplication::clipboard()->setText(static_cast<QPlainTextEdit *>(tabs->currentWidget())->toPlainText());
+        copy->setText(copiedText);
+        QTimer::singleShot(1500, copy, [=] { copy->setText(copyText); });
+    });
+
+    dialog.resize(QSize(900, 600).boundedTo(dialog.screen()->availableGeometry().size()));
+    dialog.exec();
 }
 
 void MainWindow::display_qr_link(bool nkrFormat) {
@@ -294,7 +303,6 @@ void MainWindow::display_qr_link(bool nkrFormat) {
     auto ent = Configs::dataManager->profilesRepo->GetProfile(ents.first());
     auto link = ent->outbound->ExportToLink();
     auto link_deep = ent->outbound->ExportJsonLink();
-    // Some protocols have no share-link form; fall back rather than encode "".
     auto w = new W(link, link_deep, nkrFormat || link.isEmpty());
     w->setWindowTitle(ent->outbound->DisplayTypeAndName());
     w->exec();
@@ -333,17 +341,11 @@ void MainWindow::on_menu_scan_qr_triggered() {
 }
 
 void MainWindow::on_menu_clear_test_result_triggered() {
-    auto entIDs = Configs::dataManager->groupsRepo->CurrentGroup()->Profiles();
-    auto ents = Configs::dataManager->profilesRepo->GetProfileBatch(entIDs);
-    if (ents.empty()) return;
-    for (const auto &ent: ents) {
-        ent->ClearTestResults();
-    }
-    Configs::dataManager->profilesRepo->SaveBatch(ents);
-    if (auto group = Configs::dataManager->groupsRepo->GetGroup(ents.first()->gid); group &&
-        group->calculated_column_width.size() > ProfilesTableModel::ColTestResult)
-        group->calculated_column_width[ProfilesTableModel::ColTestResult] = 0;
-    refresh_proxy_list();
+    clear_test_results(Configs::dataManager->groupsRepo->CurrentGroup()->Profiles());
+}
+
+int MainWindow::clear_test_results(const QList<int> &profileIds) {
+    return Engine::host()->clearTestResults(profileIds);
 }
 
 void MainWindow::on_menu_select_all_triggered() {
@@ -431,8 +433,7 @@ void MainWindow::on_menu_remove_insecure_triggered() {
     int remove_display_count = 0;
     for (const auto& profile : profiles) {
         if (!profile || !profile->outbound) continue;
-        // Configs of unknown security (e.g. unparseable custom ones) are spared.
-        if (!profile->outbound->GetSecurity().isDangerous()) continue;
+        if (!profile->outbound->EffectiveSecurity().isInsecure()) continue;
         del_ids += profile->id;
         if (remove_display_count < removeListPreviewLimit) {
             remove_display += profile->outbound->DisplayTypeAndName() + "\n";
@@ -467,6 +468,7 @@ void MainWindow::on_menu_resolve_selected_triggered() {
             refresh_proxy_list({profile->id});
             if (--Configs::dataManager->settingsRepo->resolve_count != 0) return;
             mw_sub_updating = false;
+            Configs::RepositionLater(ents, Configs::SortInput::Config);
         });
     }
 }
@@ -494,19 +496,19 @@ void MainWindow::on_menu_resolve_domain_triggered() {
             refresh_proxy_list({profile->id});
             if (--Configs::dataManager->settingsRepo->resolve_count != 0) return;
             mw_sub_updating = false;
+            Configs::RepositionLater(QHash<int, QList<int>>{{currGroup->id, profiles}}, Configs::SortInput::Config);
         });
     }
 }
 
 void MainWindow::on_profilesTableView_customContextMenuRequested(const QPoint &pos) {
-    const auto selected = get_now_selected_list();
-    const bool singleSelected = (selected.size() == 1);
+    // Dual Proxy.
+    const bool singleSelected = get_now_selected_list().size() == 1;
+    const bool secondarySet = Configs::dataManager->settingsRepo->SecondaryProfileId() >= 0;
     ui->action_set_secondary->setEnabled(singleSelected);
-    if (singleSelected) {
-        ui->action_set_secondary->setText(tr("Set as Secondary Proxy (%1)...").arg(Configs::dataManager->settingsRepo->secondary_inbound_port));
-    }
-    ui->action_change_secondary_port->setVisible(Configs::dataManager->settingsRepo->enable_secondary_inbound);
-    ui->action_clear_secondary->setVisible(Configs::dataManager->settingsRepo->enable_secondary_inbound);
+    ui->action_set_secondary->setText(tr("Set as Secondary Proxy (%1)...").arg(Configs::dataManager->settingsRepo->secondary_inbound_port));
+    ui->action_change_secondary_port->setVisible(secondarySet);
+    ui->action_clear_secondary->setVisible(secondarySet);
     ui->menu_server->popup(ui->profilesTableView->viewport()->mapToGlobal(pos));
 }
 
@@ -604,11 +606,14 @@ void MainWindow::focusProfilesTable(bool selectFirst) {
     view->setFocus();
     if (!selectFirst || !profilesFilterModel || profilesFilterModel->rowCount() == 0) return;
     selectProfileRows({0});
-    // selectProfileRows() suppresses auto-scroll; here the move is deliberate.
     view->scrollToTop();
 }
 
 void MainWindow::clearUnavailableProfiles(bool confirm, QList<int> profileIDs) {
+    if (!confirm) {
+        Engine::ProfileService::RemoveUnavailable(std::move(profileIDs));
+        return;
+    }
     QList<int> del_ids;
     int remove_display_count = 0;
     QString remove_display;
@@ -620,8 +625,7 @@ void MainWindow::clearUnavailableProfiles(bool confirm, QList<int> profileIDs) {
 
     auto profiles = Configs::dataManager->profilesRepo->GetProfileBatch(profileIDs);
     for (const auto &profile: profiles) {
-        // A Connect-OK profile failed only the egress probe; its tunnel is up.
-        if (profile->latency < 0 && profile->latency != Configs::kLatencyConnectOnly) {
+        if (profile->IsUnavailable()) {
             del_ids += profile->id;
             if (++remove_display_count == removeListPreviewLimit) {
                 remove_display += "...";

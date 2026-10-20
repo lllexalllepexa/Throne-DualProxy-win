@@ -88,11 +88,35 @@
        <widget class="QLineEdit" name="name"/>
       </item>
       <item row="4" column="1">
-       <widget class="QCheckBox" name="auto_clear_unavailable">
-        <property name="text">
-         <string>Auto Clear Unavailable Profiles</string>
-        </property>
-       </widget>
+       <layout class="QHBoxLayout" name="common_options_layout">
+        <item>
+         <widget class="QCheckBox" name="auto_clear_unavailable">
+          <property name="text">
+           <string>Auto Clear Unavailable Profiles</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="common_options_spacer">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>0</width>
+            <height>0</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QPushButton" name="advanced">
+          <property name="text">
+           <string>Advanced</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
      </layout>
      <zorder>label</zorder>
@@ -173,6 +197,8 @@
  <tabstops>
   <tabstop>name</tabstop>
   <tabstop>type</tabstop>
+  <tabstop>auto_clear_unavailable</tabstop>
+  <tabstop>advanced</tabstop>
   <tabstop>url</tabstop>
   <tabstop>skip_auto_update</tabstop>
   <tabstop>copy_links</tabstop>

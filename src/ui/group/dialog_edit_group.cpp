@@ -1,32 +1,69 @@
 #include "include/ui/group/dialog_edit_group.h"
 
-#include "include/ui/mainwindow_interface.h"
-
 #include <QClipboard>
 #include <QHash>
 #include <QStringListModel>
 #include <QCompleter>
 #include <QTimer>
 #include <QAbstractItemView>
+#include <QUrl>
 
 #include "include/database/GroupsRepo.h"
 #include "include/database/ProfilesRepo.h"
+#include "include/global/RunningProfiles.hpp"
+#include "include/global/Validation.hpp"
+#include "include/ui/group/dialog_edit_group_advanced.h"
+#include "include/ui/utils/ValidationForm.h"
 
 
 #define ADJUST_SIZE runOnThread([=,this] { adjustSize(); adjustPosition(mainwindow); }, this);
 
+namespace {
+    bool editGroupRunningProfileInherits(const QList<int> &profileIds) {
+        const int startedId = Configs::dataManager->settingsRepo->started_id;
+        if (startedId < 0) return false;
+        QList<int> running;
+        for (const int id : profileIds) {
+            if (id == startedId || Configs::RunningUsesProfile(id)) running << id;
+        }
+        for (const auto &profile : Configs::dataManager->profilesRepo->GetProfileBatch(running)) {
+            if (profile != nullptr && profile->endpoint.mode == Configs::EndpointSource::Mode::Inherit) return true;
+        }
+        return false;
+    }
+}
+
 DialogEditGroup::DialogEditGroup(const std::shared_ptr<Configs::Group> &ent, QWidget *parent) : QDialog(parent), ui(new Ui::DialogEditGroup) {
     ui->setupUi(this);
     this->ent = ent;
+    if (ent->id >= 0) editLock.emplace(Engine::EditTarget::Group, ent->id);
+    form = new Validation::Form(this);
+    form->attachStatus(ui->buttonBox);
 
     connect(ui->type, &QComboBox::currentIndexChanged, this, [=,this](int index) {
         ui->cat_sub->setHidden(index == 0);
         ADJUST_SIZE
     });
+    form->bind(ui->url, [](const QString &text) {
+        // The fetcher's QNetworkAccessManager reads file:// URLs too, and those carry no host.
+        if (QUrl(text.trimmed()).isLocalFile()) return QString();
+        return Validation::Url(text, {QStringLiteral("http"), QStringLiteral("https"), QStringLiteral("file")}, Validation::Empty::Required);
+    }).when([this] { return ui->type->currentIndex() == 1; });
 
     ui->name->setText(ent->name);
     ui->auto_clear_unavailable->setChecked(ent->auto_clear_unavailable);
     ui->skip_auto_update->setChecked(ent->skip_auto_update);
+    subOptions = ent->sub_options;
+    endpoint = ent->endpoint;
+    connect(ui->advanced, &QPushButton::clicked, this, [this] {
+        auto dialog = new DialogEditGroupAdvanced(subOptions, this->ent->sub_info.server_interval, endpoint, ui->type->currentIndex() == 1, this);
+        connect(dialog, &QDialog::accepted, this, [this, dialog] {
+            subOptions = dialog->Options();
+            endpoint = dialog->Endpoint();
+        });
+        connect(dialog, &QDialog::finished, dialog, &QDialog::deleteLater);
+        dialog->open();
+    });
     ui->url->setText(ent->url);
     ui->type->setCurrentIndex(ent->url.isEmpty() ? 0 : 1);
     ui->type->currentIndexChanged(ui->type->currentIndex());
@@ -158,6 +195,20 @@ DialogEditGroup::DialogEditGroup(const std::shared_ptr<Configs::Group> &ent, QWi
         LANDING.landing_proxy = ui->landing_proxy->itemData(index).value<int>();
     });
 
+    const auto proxyRule = [this](QComboBox *combo, const QString &loaded) {
+        return [this, combo, loaded](const QString &text) {
+            const QString trimmed = text.trimmed();
+            // An untouched name keeps the stored selection, which may sit outside the listed groups.
+            if (trimmed.isEmpty() || trimmed == "None" || text == loaded) return QString();
+            for (const auto &name : {text, trimmed}) {
+                if (combo->findText(name, Qt::MatchExactly) >= 0 || proxyNameToId.contains(name)) return QString();
+            }
+            return tr("No profile named \"%1\". Pick one from the list.").arg(trimmed);
+        };
+    };
+    form->bind(ui->front_proxy, proxyRule(ui->front_proxy, ui->front_proxy->currentText())).raw();
+    form->bind(ui->landing_proxy, proxyRule(ui->landing_proxy, ui->landing_proxy->currentText())).raw();
+
     connect(ui->copy_links, &QPushButton::clicked, this, [=] {
         QStringList links;
         auto profiles = Configs::dataManager->profilesRepo->GetProfileBatch(ent->Profiles());
@@ -178,6 +229,7 @@ DialogEditGroup::DialogEditGroup(const std::shared_ptr<Configs::Group> &ent, QWi
     });
 
     ui->name->setFocus();
+    form->markAll();
 
     ADJUST_SIZE
 }
@@ -206,16 +258,21 @@ int DialogEditGroup::resolve_proxy_selection(QComboBox *combo, int fallback) con
 }
 
 void DialogEditGroup::accept() {
-    if (ent->id >= 0) { // already a group
-        if (!ent->url.isEmpty() && ui->url->text().isEmpty()) {
-            MessageBoxWarning(tr("Warning"), tr("Please input URL"));
-            return;
-        }
+    if (!form->validateAll()) return;
+    // A basic group keeps no URL, even one typed before switching the type back.
+    const QString newUrl = ui->type->currentIndex() == 1 ? ui->url->text().trimmed() : QString();
+    if (ent->url != newUrl) {
+        ent->sub_info = Configs::SubUserInfo{};
+        ent->sub_last_update = 0;
+        ent->info.clear();
     }
     ent->name = ui->name->text().trimmed();
     ent->auto_clear_unavailable = ui->auto_clear_unavailable->isChecked();
-    ent->url = ui->url->text().trimmed();
+    ent->url = newUrl;
     ent->skip_auto_update = ui->skip_auto_update->isChecked();
+    ent->sub_options = subOptions;
+    restartNeeded = endpoint != ent->endpoint && editGroupRunningProfileInherits(ent->Profiles());
+    ent->endpoint = endpoint;
     ent->front_proxy_id = resolve_proxy_selection(ui->front_proxy, CACHE.front_proxy);
     ent->landing_proxy_id = resolve_proxy_selection(ui->landing_proxy, LANDING.landing_proxy);
     QDialog::accept();

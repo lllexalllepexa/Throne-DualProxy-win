@@ -6,6 +6,7 @@
 #include <QMimeData>
 #include <QPalette>
 
+#include "include/configs/generate.h"
 #include "include/database/GroupsRepo.h"
 #include "include/database/ProfilesRepo.h"
 
@@ -77,6 +78,7 @@ void ProfilesTableModel::evictOne() const {
     if (m_lruOrder.isEmpty()) return;
     int id = m_lruOrder.takeFirst();
     m_cache.remove(id);
+    m_addressCache.remove(id);
 }
 
 QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
@@ -94,13 +96,15 @@ QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
     const std::shared_ptr<Configs::Profile> &profile = it.value();
     if (!profile) return {};
 
-    const int startedId = Configs::dataManager->settingsRepo->started_id;
+    const auto &settings = Configs::dataManager->settingsRepo;
+    const int startedId = settings->started_id;
     const bool isRunning = (profile->id == startedId);
-    const bool isSecondary = Configs::dataManager->settingsRepo->enable_secondary_inbound &&
-                             Configs::dataManager->settingsRepo->started_id >= 0 &&
-                             (profile->id == Configs::dataManager->settingsRepo->secondary_profile_id);
+    // Dual Proxy: the badge marks the assigned secondary either way; it is colored only while the running config serves it.
+    const bool secondaryActive = profile->id == settings->started_secondary_id;
+    const bool isSecondary = secondaryActive || profile->id == settings->SecondaryProfileId();
+    const bool dualRunning = startedId >= 0 && settings->started_secondary_id >= 0;
     QColor linkColor = isRunning ? QApplication::palette().link().color() : QColor();
-    QColor secondaryColor = isSecondary ? QColor(0, 180, 140) : QColor();
+    QColor secondaryColor = secondaryActive ? QColor(0, 180, 140) : QColor();
 
     if (role == Qt::DisplayRole) {
         switch (index.column()) {
@@ -113,13 +117,17 @@ QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
             }
             return type;
         }
-        case ColAddress: return profile->outbound ? profile->outbound->DisplayAddress() : QString();
+        case ColAddress: {
+            auto address = m_addressCache.constFind(profileId);
+            if (address == m_addressCache.constEnd()) address = m_addressCache.insert(profileId, Configs::DisplayEffectiveAddress(profile));
+            return address.value();
+        }
         case ColName: {
-            QString name = profile->outbound ? profile->outbound->name : QString();
-            if (isSecondary) {
-                name = QStringLiteral("[2nd:%1] ").arg(Configs::dataManager->settingsRepo->secondary_inbound_port) + name;
-            } else if (isRunning && Configs::dataManager->settingsRepo->enable_secondary_inbound) {
-                name = QStringLiteral("[1st:%1] ").arg(Configs::dataManager->settingsRepo->inbound_socks_port) + name;
+            const QString name = profile->outbound ? profile->outbound->name : QString();
+            if (isSecondary) return QStringLiteral("[2nd:%1] ").arg(settings->secondary_inbound_port) + name;
+            if (isRunning && dualRunning) {
+                return (settings->disable_mixed_inbound ? QStringLiteral("[1st] ")
+                                                        : QStringLiteral("[1st:%1] ").arg(settings->inbound_socks_port)) + name;
             }
             return name;
         }
@@ -129,15 +137,18 @@ QVariant ProfilesTableModel::data(const QModelIndex &index, int role) const {
         }
     }
     if (role == Qt::ToolTipRole) {
-        if (isSecondary) {
-            return tr("Active Secondary Proxy (Port %1)").arg(Configs::dataManager->settingsRepo->secondary_inbound_port);
+        // On the badge's own column, so the Type column keeps its security warning.
+        if (index.column() == ColName && isSecondary) {
+            return secondaryActive ? tr("Active Secondary Proxy (Port %1)").arg(settings->secondary_inbound_port)
+                                   : tr("Secondary Proxy (Port %1), not running").arg(settings->secondary_inbound_port);
         }
-        if (isRunning && Configs::dataManager->settingsRepo->enable_secondary_inbound) {
-            return tr("Active Primary Proxy (Port %1)").arg(Configs::dataManager->settingsRepo->inbound_socks_port);
+        if (index.column() == ColName && isRunning && dualRunning && !settings->disable_mixed_inbound) {
+            return tr("Active Primary Proxy (Port %1)").arg(settings->inbound_socks_port);
         }
-        if (index.column() == ColType && Configs::dataManager->settingsRepo->show_config_security
-            && profile->outbound && profile->outbound->GetSecurity().isDangerous()) {
-            return tr("This config's traffic is not properly protected.");
+        if (index.column() == ColType && Configs::dataManager->settingsRepo->show_config_security && profile->outbound) {
+            const auto security = profile->outbound->EffectiveSecurity();
+            if (security.compromised) return tr("Certificate checks are turned off by the \"Skip TLS certificate authentication\" setting.");
+            if (security.isDangerous()) return tr("This config's traffic is not properly protected.");
         }
         return {};
     }
@@ -178,6 +189,7 @@ void ProfilesTableModel::setProfileIds(const QList<int> &ids) {
     }
     m_cache.clear();
     m_lruOrder.clear();
+    m_addressCache.clear();
     m_filterKeys.clear();
     m_filterIndexBuilt = false;
     endResetModel();
@@ -190,6 +202,7 @@ namespace {
         key.country = profile->test_country;
         if (profile->outbound) {
             key.address = profile->outbound->server;
+            key.effectiveAddress = Configs::EffectiveEndpointHost(profile);
             key.name = profile->outbound->name;
             key.port = profile->outbound->server_port;
         }
@@ -225,7 +238,7 @@ void ProfilesTableModel::refreshTable(const QList<int> &ids, bool mayNeedReset) 
     if (needFullReset) {
         setProfileIds(ids);
     } else {
-        // A bulk refresh can rewrite filter fields (clearing tests wipes test_country).
+        m_addressCache.clear();
         m_filterKeys.clear();
         m_filterIndexBuilt = false;
 
@@ -238,6 +251,7 @@ void ProfilesTableModel::refreshTable(const QList<int> &ids, bool mayNeedReset) 
 
 void ProfilesTableModel::refreshProfileId(int profileId) {
     if (!id2row.contains(profileId)) return;
+    m_addressCache.remove(profileId);
     // Keep the filter key in step before dataChanged makes the proxy re-test the row.
     if (m_filterIndexBuilt) {
         if (auto profile = Configs::dataManager->profilesRepo->GetProfile(profileId)) {
@@ -250,13 +264,20 @@ void ProfilesTableModel::refreshProfileId(int profileId) {
     emit dataChanged(top, bottom);
 }
 
+void ProfilesTableModel::invalidateAddresses() {
+    m_addressCache.clear();
+    m_filterKeys.clear();
+    m_filterIndexBuilt = false;
+    if (m_profileIds.isEmpty()) return;
+    emit dataChanged(index(0, ColAddress), index(static_cast<int>(m_profileIds.size()) - 1, ColAddress), {Qt::DisplayRole});
+}
+
 void ProfilesTableModel::emplaceProfiles(int row1, int row2) {
     if (m_profileIds.size() <= row1 || m_profileIds.size() <= row2) return;
     m_profileIds.insert(row2+1, m_profileIds[row1]);
     if (row1 < row2) m_profileIds.remove(row1);
     else m_profileIds.remove(row1+1);
 
-    // Every row between the two shifted by one; id2row has to follow.
     const int from = std::max(std::min(row1, row2), 0);
     const int to = std::min(std::max(row1, row2), static_cast<int>(m_profileIds.size()) - 1);
     for (int i = from; i <= to; ++i) id2row[m_profileIds[i]] = i;
@@ -266,6 +287,30 @@ void ProfilesTableModel::emplaceProfiles(int row1, int row2) {
 int ProfilesTableModel::indexOfProfile(int id) {
     if (id2row.contains(id)) return id2row.value(id);
     return -1;
+}
+
+int ProfilesTableModel::columnOfSort(GroupSortMethod::GroupSortMethod method) {
+    switch (method) {
+    case GroupSortMethod::ByType:
+    case GroupSortMethod::BySecurity: return ColType;
+    case GroupSortMethod::ByAddress: return ColAddress;
+    case GroupSortMethod::ByName: return ColName;
+    case GroupSortMethod::ByTestResult:
+    case GroupSortMethod::ByLatency: return ColTestResult;
+    case GroupSortMethod::ByTraffic: return ColTraffic;
+    default: return -1;
+    }
+}
+
+GroupSortMethod::GroupSortMethod ProfilesTableModel::sortOfColumn(int column) {
+    switch (column) {
+    case ColType: return GroupSortMethod::ByType;
+    case ColAddress: return GroupSortMethod::ByAddress;
+    case ColName: return GroupSortMethod::ByName;
+    case ColTestResult: return GroupSortMethod::ByTestResult;
+    case ColTraffic: return GroupSortMethod::ByTraffic;
+    default: return GroupSortMethod::Raw;
+    }
 }
 
 QString ProfilesTableModel::rowLabel(int sourceRow, int displayRow) const {
