@@ -4,88 +4,111 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSslSocket>
 #include <QTimer>
 #include <QFile>
-#include <QApplication>
-#include <QMap>
+#include <QEventLoop>
+#include <QMutex>
+#include <QMutexLocker>
 #include <QStringList>
 
 
 
 #include "include/global/Configs.hpp"
-#include "include/ui/mainwindow.h"
-#include "include/global/DeviceDetailsHelper.hpp"
+#include "include/global/LocalNetwork.hpp"
 
 namespace Configs_network {
+    namespace {
+        constexpr int kDownloadAssetIdleTimeoutMs = 30000;
 
-    HTTPResponse NetworkRequestHelper::HttpGet(const QString &url, bool sendHwid, bool useProxy, qint64 maxBytes, int customPort) {
+        QMutex downloadProgressSinkMutex;
+        NetworkRequestHelper::DownloadProgressSink downloadProgressSink;
+
+        NetworkRequestHelper::DownloadProgressSink loadDownloadProgressSink() {
+            QMutexLocker locker(&downloadProgressSinkMutex);
+            return downloadProgressSink;
+        }
+
+        // The sink is looked up again on the main thread, so one cleared meanwhile is never called.
+        void reportDownloadProgress(const DownloadProgressReport &report, bool show) {
+            if (!loadDownloadProgressSink()) return;
+            runOnUiThread([report, show] {
+                if (const auto sink = loadDownloadProgressSink()) sink(report, show);
+            });
+        }
+    } // namespace
+
+    QNetworkProxy MixedInboundProxy() {
+        const auto &settings = Configs::dataManager->settingsRepo;
+        QNetworkProxy p;
+        p.setType(QNetworkProxy::HttpProxy);
+        p.setHostName(LocalNetwork::InboundConnectHost());
+        p.setPort(settings->inbound_socks_port);
+        if (settings->inbound_auth) {
+            p.setUser(settings->inbound_user);
+            p.setPassword(settings->inbound_pass);
+        }
+        return p;
+    }
+
+    bool RequestUsesMixedInbound(bool useProxy, QString *error) {
+        const auto &settings = Configs::dataManager->settingsRepo;
+        if (!settings->net_use_proxy && !settings->spmode_system_proxy && !useProxy) return false;
+        if (settings->started_id < 0) {
+            *error = QObject::tr("Request with proxy but no profile started.");
+            return false;
+        }
+        if (!settings->disable_mixed_inbound) return true;
+        if (!settings->spmode_vpn) *error = QObject::tr("Request with proxy but the mixed inbound is disabled and Tun Mode is off.");
+        return false;
+    }
+
+    void NetworkRequestHelper::SetDownloadProgressSink(DownloadProgressSink sink) {
+        QMutexLocker locker(&downloadProgressSinkMutex);
+        downloadProgressSink = std::move(sink);
+    }
+
+    HTTPResponse NetworkRequestHelper::HttpGet(const QString &url, bool useProxy) {
+        HttpGetOptions options;
+        options.useProxy = useProxy;
+        return HttpGet(url, options);
+    }
+
+    HTTPResponse NetworkRequestHelper::HttpGet(const QString &url, const HttpGetOptions &options) {
+        if (!QSslSocket::isProtocolSupported(options.tlsProtocol)) {
+            return HTTPResponse{QObject::tr("The selected TLS version is not supported on this system.")};
+        }
+        const qint64 maxBytes = options.maxBytes;
         QNetworkRequest request;
         QNetworkAccessManager accessManager;
         accessManager.setTransferTimeout(10000);
         request.setUrl(url);
-        if (Configs::dataManager->settingsRepo->net_use_proxy || Configs::dataManager->settingsRepo->spmode_system_proxy || useProxy) {
-            if (Configs::dataManager->settingsRepo->started_id < 0) {
-                return HTTPResponse{QObject::tr("Request with proxy but no profile started.")};
-            }
-            QNetworkProxy p;
-            p.setType(QNetworkProxy::HttpProxy);
-            p.setHostName(Configs::dataManager->settingsRepo->inbound_address == "::" ? "127.0.0.1" : Configs::dataManager->settingsRepo->inbound_address);
-            p.setPort(customPort > 0 ? customPort : Configs::dataManager->settingsRepo->inbound_socks_port);
-            if (Configs::dataManager->settingsRepo->inbound_auth) {
-                p.setUser(Configs::dataManager->settingsRepo->inbound_user);
-                p.setPassword(Configs::dataManager->settingsRepo->inbound_pass);
-            }
-            accessManager.setProxy(p);
-        }
+        QString proxyError;
+        if (options.inboundPort > 0) {
+            // Never falls back to a direct or Tun-captured request: that would answer for the primary's exit instead.
+            if (Configs::dataManager->settingsRepo->started_id < 0) return HTTPResponse{QObject::tr("Request with proxy but no profile started.")};
+            auto proxy = MixedInboundProxy();
+            proxy.setPort(options.inboundPort);
+            accessManager.setProxy(proxy);
+        } else if (RequestUsesMixedInbound(options.useProxy, &proxyError)) accessManager.setProxy(MixedInboundProxy());
+        else if (!proxyError.isEmpty()) return HTTPResponse{proxyError};
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-        request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, Configs::dataManager->settingsRepo->GetUserAgent());
-        if (Configs::dataManager->settingsRepo->net_insecure) {
-            QSslConfiguration c;
-            c.setPeerVerifyMode(QSslSocket::PeerVerifyMode::VerifyNone);
-            request.setSslConfiguration(c);
-        }
-        if (sendHwid) {
-            auto details = GetDeviceDetails();
-
-            QMap<QString, QString> customParams;
-            if (!Configs::dataManager->settingsRepo->sub_custom_hwid_params.isEmpty()) {
-                QStringList pairs = Configs::dataManager->settingsRepo->sub_custom_hwid_params.split(',');
-                for (const QString &pair : pairs) {
-                    QString trimmed = pair.trimmed();
-                    int eqPos = trimmed.indexOf('=');
-                    if (eqPos > 0) {
-                        QString key = trimmed.left(eqPos).trimmed();
-                        QString value = trimmed.mid(eqPos + 1).trimmed();
-                        if (!key.isEmpty() && !value.isEmpty() &&
-                            !value.contains('\n') && !value.contains('\r') &&
-                            value.length() < 1000) {
-                            QString lowerKey = key.toLower();
-                            if (lowerKey == "hwid" || lowerKey == "os" ||
-                                lowerKey == "osversion" || lowerKey == "model") {
-                                customParams[lowerKey] = value;
-                            }
-                        }
-                    }
-                }
-            }
-
-            QString hwid = customParams.contains("hwid") ? customParams["hwid"] : details.hwid;
-            QString os = customParams.contains("os") ? customParams["os"] : details.os;
-            QString osVersion = customParams.contains("osversion") ? customParams["osversion"] : details.osVersion;
-            QString model = customParams.contains("model") ? customParams["model"] : details.model;
-
-            if (!hwid.isEmpty()) request.setRawHeader("x-hwid", hwid.toUtf8());
-            if (!os.isEmpty()) request.setRawHeader("x-device-os", os.toUtf8());
-            if (!osVersion.isEmpty()) request.setRawHeader("x-ver-os", osVersion.toUtf8());
-            if (!model.isEmpty()) request.setRawHeader("x-device-model", model.toUtf8());
-        }
+        request.setAttribute(QNetworkRequest::Http2AllowedAttribute, options.http2);
+        request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader,
+                          options.userAgent.isEmpty() ? Configs::dataManager->settingsRepo->GetUserAgent() : options.userAgent);
+        const bool insecure = Configs::dataManager->settingsRepo->net_insecure && !options.strictTls;
+        auto ssl = request.sslConfiguration();
+        ssl.setProtocol(options.tlsProtocol);
+        if (insecure) ssl.setPeerVerifyMode(QSslSocket::PeerVerifyMode::VerifyNone);
+        request.setSslConfiguration(ssl);
+        for (const auto &[name, value] : options.headers) request.setRawHeader(name, value);
         auto _reply = accessManager.get(request);
-        connect(_reply, &QNetworkReply::sslErrors, _reply, [](const QList<QSslError> &errors) {
+        connect(_reply, &QNetworkReply::sslErrors, _reply, [insecure](const QList<QSslError> &errors) {
             QStringList error_str;
             for (const auto &err: errors) {
                 error_str << err.errorString();
             }
-            MW_show_log(QString("SSL Errors: %1 %2").arg(error_str.join(","), Configs::dataManager->settingsRepo->net_insecure ? "(Ignored)" : ""));
+            MW_show_log(QString("SSL Errors: %1 %2").arg(error_str.join(","), insecure ? "(Ignored)" : ""));
         });
         QByteArray body;
         bool tooLarge = false;
@@ -126,60 +149,48 @@ namespace Configs_network {
         return {};
     }
 
-    QString NetworkRequestHelper::DownloadAsset(const QString &url, const QString &fileName, bool useProxy) {
+    QString NetworkRequestHelper::DownloadAsset(const QString &url, const QString &fileName, bool useProxy, bool strictTls) {
         QNetworkRequest request;
         QNetworkAccessManager accessManager;
+        accessManager.setTransferTimeout(kDownloadAssetIdleTimeoutMs);
         request.setUrl(url);
-        if (Configs::dataManager->settingsRepo->net_use_proxy || Configs::dataManager->settingsRepo->spmode_system_proxy || useProxy) {
-            if (Configs::dataManager->settingsRepo->started_id < 0) {
-                return QObject::tr("Request with proxy but no profile started.");
-            }
-            QNetworkProxy p;
-            p.setType(QNetworkProxy::HttpProxy);
-            p.setHostName(Configs::dataManager->settingsRepo->inbound_address == "::" ? "127.0.0.1" : Configs::dataManager->settingsRepo->inbound_address);
-            p.setPort(Configs::dataManager->settingsRepo->inbound_socks_port);
-            if (Configs::dataManager->settingsRepo->inbound_auth) {
-                p.setUser(Configs::dataManager->settingsRepo->inbound_user);
-                p.setPassword(Configs::dataManager->settingsRepo->inbound_pass);
-            }
-            accessManager.setProxy(p);
-        }
+        QString proxyError;
+        if (RequestUsesMixedInbound(useProxy, &proxyError)) accessManager.setProxy(MixedInboundProxy());
+        else if (!proxyError.isEmpty()) return proxyError;
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-        if (Configs::dataManager->settingsRepo->net_insecure) {
+        const bool insecure = Configs::dataManager->settingsRepo->net_insecure && !strictTls;
+        if (insecure) {
             QSslConfiguration c;
             c.setPeerVerifyMode(QSslSocket::PeerVerifyMode::VerifyNone);
             request.setSslConfiguration(c);
         }
 
         auto _reply = accessManager.get(request);
-        connect(_reply, &QNetworkReply::sslErrors, _reply, [](const QList<QSslError> &errors) {
+        connect(_reply, &QNetworkReply::sslErrors, _reply, [insecure](const QList<QSslError> &errors) {
             QStringList error_str;
             for (const auto &err: errors) {
                 error_str << err.errorString();
             }
-            MW_show_log(QString("SSL Errors: %1 %2").arg(error_str.join(","), Configs::dataManager->settingsRepo->net_insecure ? "(Ignored)" : ""));
+            MW_show_log(QString("SSL Errors: %1 %2").arg(error_str.join(","), insecure ? "(Ignored)" : ""));
         });
         connect(_reply, &QNetworkReply::downloadProgress, _reply, [&](qint64 bytesReceived, qint64 bytesTotal)
         {
-            runOnUiThread([=]{
-                GetMainWindow()->setDownloadReport(DownloadProgressReport{fileName, bytesReceived, bytesTotal}, true);
-                GetMainWindow()->UpdateDataView();
-            });
+            reportDownloadProgress(DownloadProgressReport{fileName, bytesReceived, bytesTotal}, true);
         });
         QEventLoop loop;
         connect(_reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
         loop.exec();
-        runOnUiThread([=]
-        {
-            GetMainWindow()->setDownloadReport({}, false);
-            GetMainWindow()->UpdateDataView(true);
-        });
+        reportDownloadProgress({}, false);
         auto netErr = _reply->error();
         const QString netErrStr = _reply->errorString();
         const int httpStatus = _reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         const QByteArray body = _reply->readAll();
         _reply->deleteLater();
 
+        // Nothing else aborts this reply, so a cancel is the idle transfer timeout firing.
+        if (netErr == QNetworkReply::NetworkError::OperationCanceledError) {
+            return QObject::tr("Download stalled: no data arrived for %1 seconds.").arg(kDownloadAssetIdleTimeoutMs / 1000);
+        }
         if (netErr != QNetworkReply::NetworkError::NoError) {
             return netErrStr;
         }

@@ -3,6 +3,11 @@
 #include <QObject>
 #include <QPalette>
 #include <QColor>
+#include <QHash>
+#include <QIcon>
+#include <QStyle>
+
+#include <array>
 
 // UI colours resolved from the installed palette, then contrast-repaired against `surface`.
 // Use these rather than palette(...) in a QSS: stylesheet palette() resolves against
@@ -10,16 +15,14 @@
 struct ThemeTokens {
     QColor surface;
     QColor onSurface;
-    QColor accent;       // never carries text; onAccent exists for callers that must
-    QColor onAccent;
-    QColor selectedFill;
-    QColor hoverFill;
-    QColor borderSubtle;
+    QColor accent;
     QColor muted;
     QColor tag;
     QColor danger;
     QColor success;
     QColor info;
+    std::array<QColor, 5> chartSeries;
+    QColor chartContext;
 };
 
 class ThemeManager : public QObject {
@@ -31,8 +34,14 @@ public:
     ThemeTokens tokens;          // rebuilt by every ApplyTheme(), before themeChanged fires
 
     void ApplyTheme(const QString &theme, bool force = false);
+
+    // QStyle::standardIcon loads from the system on every call: about 9 ms for a message box icon on Windows.
+    QIcon standardIcon(QStyle::StandardPixmap pixmap);
 signals:
     void themeChanged(QString themeName);
+
+private:
+    QHash<int, QIcon> standardIcons; // the current style's; ApplyTheme() reloads the message box icons
 };
 
 ThemeManager *themeManager();

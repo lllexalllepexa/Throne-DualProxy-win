@@ -67,7 +67,6 @@ message("[CMAKE_FIND_ROOT_PATH] ${CMAKE_FIND_ROOT_PATH}")
 set(BUILD_SHARED_LIBS OFF)
 
 include("cmake/print.cmake")
-include("cmake/QHotkey.cmake")
 
 find_package(Threads)
 
@@ -75,10 +74,19 @@ if (NKR_PACKAGE OR NKR_PACKAGE_MACOS)
     nkr_add_compile_definitions(NKR_CPP_USE_APPDATA)
 endif ()
 
+# Distro packaging hooks: a core reached through a PATH wrapper, and prefixes the app cannot chmod itself.
+if (NKR_CORE_IN_PATH)
+    nkr_add_compile_definitions(NKR_CORE_IN_PATH)
+endif ()
+if (NKR_ELEVATION_HINT)
+    nkr_add_compile_definitions(NKR_ELEVATION_HINT="${NKR_ELEVATION_HINT}")
+endif ()
+if (NKR_DESKTOP_EXEC)
+    nkr_add_compile_definitions(NKR_DESKTOP_EXEC="${NKR_DESKTOP_EXEC}")
+endif ()
+
 include("cmake/myproto.cmake")
 list(APPEND NKR_EXTERNAL_TARGETS myproto)
-
-list(APPEND NKR_EXTERNAL_TARGETS qhotkey)
 
 # Sources
 set(PROJECT_SOURCES
@@ -87,6 +95,8 @@ set(PROJECT_SOURCES
         src/main.cpp
         src/global/Configs.cpp
         src/global/Utils.cpp
+        include/global/Validation.hpp
+        src/global/Validation.cpp
         include/global/Logger.hpp
         src/global/Logger.cpp
         include/global/PeriodicRunner.hpp
@@ -94,6 +104,8 @@ set(PROJECT_SOURCES
         src/global/HTTPRequestHelper.cpp
         src/global/DeviceDetailsHelper.cpp
         src/global/CountryHelper.cpp
+        include/global/ExitLookup.hpp
+        src/global/ExitLookup.cpp
         include/global/LocalNetwork.hpp
         src/global/LocalNetwork.cpp
         include/global/OTP.hpp
@@ -102,6 +114,10 @@ set(PROJECT_SOURCES
         src/global/OtpPlaceholder.cpp
         include/global/VpnCredentialOverride.hpp
         src/global/VpnCredentialOverride.cpp
+        include/global/RunningProfiles.hpp
+        src/global/RunningProfiles.cpp
+        include/global/Notice.hpp
+        src/global/Notice.cpp
 
         3rdparty/qrcodegen.cpp
         3rdparty/QtExtKeySequenceEdit.cpp
@@ -109,14 +125,14 @@ set(PROJECT_SOURCES
 
         3rdparty/qv2ray/v2/ui/LogHighlighter.cpp
         3rdparty/qv2ray/v2/ui/QvAutoCompleteTextEdit.cpp
-        3rdparty/qv2ray/v2/ui/widgets/speedchart/SpeedWidget.cpp
-        3rdparty/qv2ray/v2/ui/widgets/speedchart/SpeedWidget.hpp
-        3rdparty/qv2ray/v2/proxy/QvProxyConfigurator.cpp
 
         3rdparty/quirc/decode.c
         3rdparty/quirc/identify.c
         3rdparty/quirc/quirc.c
         3rdparty/quirc/version_db.c
+
+        3rdparty/monocypher/monocypher.c
+        3rdparty/monocypher/monocypher.h
 
         3rdparty/SQLiteCpp/src/Backup.cpp
         3rdparty/SQLiteCpp/src/Column.cpp
@@ -128,8 +144,23 @@ set(PROJECT_SOURCES
         3rdparty/SQLiteCpp/src/Transaction.cpp
 
         src/api/RPC.cpp
+        include/api/remote/Protocol.hpp
+        src/api/remote/Protocol.cpp
+        include/api/remote/Message.hpp
+        src/api/remote/Message.cpp
+        include/api/remote/Server.hpp
+        src/api/remote/Server.cpp
+        src/api/remote/Config.cpp
+        include/api/remote/Overlay.hpp
+        include/api/remote/Router.hpp
+        src/api/remote/Router.cpp
+        src/api/remote/RouterTests.cpp
+        src/api/remote/RouterManage.cpp
+        src/api/remote/RouterBackup.cpp
 
         src/stats/traffic/TrafficLooper.cpp
+        include/stats/traffic/TrafficLine.hpp
+        include/stats/StatsSink.hpp
         include/stats/traffic/TrafficStatsManager.hpp
         src/stats/traffic/TrafficStatsManager.cpp
 
@@ -138,6 +169,10 @@ set(PROJECT_SOURCES
         include/configs/sub/SubscriptionScan.hpp
         include/configs/sub/SubscriptionParser.hpp
         src/configs/sub/SubscriptionParser.cpp
+        include/configs/sub/ImportReport.hpp
+        src/configs/sub/ImportReport.cpp
+        include/configs/ParseDiagnostics.h
+        src/configs/ParseDiagnostics.cpp
         include/configs/sub/SubscriptionReconcile.hpp
         src/configs/sub/SubscriptionReconcile.cpp
         include/configs/sub/RouteUpdater.hpp
@@ -149,11 +184,23 @@ set(PROJECT_SOURCES
         include/sys/Process.hpp
         src/sys/Process.cpp
 
+        include/sys/KillSwitch.hpp
+        src/sys/KillSwitch.cpp
+
         include/sys/ProcessMetrics.hpp
         src/sys/ProcessMetrics.cpp
 
+        include/sys/CoreDiagnostics.hpp
+        src/sys/CoreDiagnostics.cpp
+
         include/sys/UrlScheme.hpp
         src/sys/UrlScheme.cpp
+
+        include/sys/SystemProxy.hpp
+
+        include/sys/GlobalHotkeys.hpp
+        include/sys/GlobalHotkeyBackend.hpp
+        src/sys/GlobalHotkeys.cpp
 
         include/ui/setting/ThemeManager.hpp
         src/ui/setting/ThemeManager.cpp
@@ -170,20 +217,29 @@ set(PROJECT_SOURCES
         src/ui/mainWindow/mainwindow_log.cpp
         src/ui/mainWindow/mainwindow_hotkeys.cpp
         src/ui/mainWindow/mainwindow_profile_lifecycle.cpp
-        src/ui/mainWindow/mainwindow_autoselector.cpp
-        src/ui/mainWindow/TestRunner.cpp
+        src/ui/mainWindow/mainwindow_scanner.cpp
+        src/ui/mainWindow/mainwindow_engine_control.cpp
+        src/ui/mainWindow/mainwindow_policy.cpp
+        src/ui/mainWindow/mainwindow_dualproxy.cpp
         include/ui/mainWindow/MainWindowInternal.h
-        include/ui/mainWindow/TestRunner.h
         include/ui/mainwindow.h
         include/ui/mainwindow.ui
         include/ui/widget/StartStopButton.hpp
         src/ui/widget/StartStopButton.cpp
+        include/ui/widget/TrayIcon.hpp
+        src/ui/widget/TrayIcon.cpp
         include/ui/widget/TrayPopupFrame.hpp
         src/ui/widget/TrayPopupFrame.cpp
         include/ui/widget/TrayProfileSelector.hpp
         src/ui/widget/TrayProfileSelector.cpp
         include/ui/widget/TrayOtpCodes.hpp
         src/ui/widget/TrayOtpCodes.cpp
+        include/ui/widget/SubscriptionInfoCard.hpp
+        src/ui/widget/SubscriptionInfoCard.cpp
+        include/ui/widget/SeriesBuffer.h
+        src/ui/widget/SeriesBuffer.cpp
+        include/ui/widget/LiveChart.h
+        src/ui/widget/LiveChart.cpp
         include/ui/widget/json/JsonTree.h
         src/ui/widget/json/JsonTree.cpp
         include/ui/widget/json/JsonValidator.h
@@ -209,22 +265,29 @@ set(PROJECT_SOURCES
         src/ui/utils/ProfilesTableVerticalHeader.cpp
         include/ui/utils/ProfilesTableFilterHeader.h
         include/ui/utils/ConnectionsFilterHeader.h
-        include/ui/utils/ConnectionsTableModel.h
-        src/ui/utils/ConnectionsTableModel.cpp
-        include/ui/utils/ConnectionsFilterProxyModel.h
-        src/ui/utils/ConnectionsFilterProxyModel.cpp
-        include/ui/utils/ConnectionCloseDelegate.h
-        src/ui/utils/ConnectionCloseDelegate.cpp
+        include/ui/utils/ConnectionsTreeModel.h
+        src/ui/utils/ConnectionsTreeModel.cpp
+        include/ui/utils/ConnectionsTreeFilterProxyModel.h
+        src/ui/utils/ConnectionsTreeFilterProxyModel.cpp
         include/ui/utils/ScreenQrScanner.h
         src/ui/utils/ScreenQrScanner.cpp
+        include/ui/utils/NoWheelComboBox.h
+        include/ui/utils/GuiUtils.hpp
+        include/ui/utils/ValidationForm.h
+        src/ui/utils/ValidationForm.cpp
 
         include/ui/profile/dialog_edit_profile.h
         src/ui/profile/dialog_edit_profile.cpp
+        src/ui/profile/dialog_edit_profile_singbox.cpp
+        src/ui/profile/dialog_edit_profile_xray.cpp
         src/ui/profile/dialog_edit_profile_xhttp.cpp
         include/ui/profile/dialog_edit_profile.ui
         include/ui/group/dialog_edit_group.h
         src/ui/group/dialog_edit_group.cpp
         include/ui/group/dialog_edit_group.ui
+        include/ui/group/dialog_edit_group_advanced.h
+        src/ui/group/dialog_edit_group_advanced.cpp
+        include/ui/group/dialog_edit_group_advanced.ui
 
         include/ui/profile/edit_chain.h
         src/ui/profile/edit_chain.cpp
@@ -300,6 +363,10 @@ set(PROJECT_SOURCES
         src/ui/profile/edit_wireguard_amnezia.cpp
         include/ui/profile/edit_wireguard_amnezia.ui
 
+        include/ui/profile/edit_masque.h
+        src/ui/profile/edit_masque.cpp
+        include/ui/profile/edit_masque.ui
+
         include/ui/profile/editor_table_utils.h
 
         include/ui/profile/edit_openvpn.h
@@ -325,6 +392,10 @@ set(PROJECT_SOURCES
         src/ui/setting/dialog_basic_settings.cpp
         include/ui/setting/dialog_basic_settings.h
         include/ui/setting/dialog_basic_settings.ui
+
+        src/ui/setting/DiagnosticsTab.cpp
+        include/ui/setting/DiagnosticsTab.h
+        include/ui/setting/DiagnosticsTab.ui
 
         src/ui/group/dialog_manage_groups.cpp
         include/ui/group/dialog_manage_groups.h
@@ -356,24 +427,60 @@ set(PROJECT_SOURCES
         src/ui/setting/OtpListWidget.cpp
         include/ui/setting/OtpListWidget.h
 
+        include/ui/utils/ReorderListWidget.h
+        src/ui/utils/ReorderListWidget.cpp
+
+        src/ui/scanner/dialog_scanner.cpp
+        include/ui/scanner/dialog_scanner.h
+        include/ui/scanner/dialog_scanner.ui
+        src/ui/scanner/ScanItem.cpp
+        include/ui/scanner/ScanItem.h
+        src/ui/scanner/dialog_new_scan.cpp
+        include/ui/scanner/dialog_new_scan.h
+        src/ui/scanner/dialog_scan_instance.cpp
+        include/ui/scanner/dialog_scan_instance.h
+        include/ui/scanner/dialog_scan_instance.ui
+        src/ui/scanner/IpEntriesModel.cpp
+        include/ui/scanner/IpEntriesModel.h
+        src/ui/scanner/dialog_ip_lists.cpp
+        include/ui/scanner/dialog_ip_lists.h
+        include/ui/scanner/dialog_ip_lists.ui
+        src/ui/scanner/IpListItem.cpp
+        include/ui/scanner/IpListItem.h
+        src/ui/scanner/dialog_edit_ip_list.cpp
+        include/ui/scanner/dialog_edit_ip_list.h
+        include/ui/scanner/dialog_edit_ip_list.ui
+
+        include/scanner/IpListParse.h
+        src/scanner/IpListParse.cpp
+        include/scanner/WarpPresets.h
+        include/scanner/DefaultIpLists.h
+        src/scanner/DefaultIpLists.cpp
+        include/scanner/ScanProfiles.h
+        src/scanner/ScanProfiles.cpp
+        include/scanner/IpListUpdater.h
+        src/scanner/IpListUpdater.cpp
+        include/scanner/ScanManager.h
+        src/scanner/ScanManager.cpp
+        include/scanner/ScanWorker.h
+        src/scanner/ScanWorker.cpp
+
         src/ui/stats/dialog_traffic_stats.cpp
         include/ui/stats/dialog_traffic_stats.h
         include/ui/stats/dialog_traffic_stats.ui
         src/ui/stats/TrafficChartWidget.cpp
         include/ui/stats/TrafficChartWidget.h
 
-        src/ui/stats/dialog_runtime_stats.cpp
-        include/ui/stats/dialog_runtime_stats.h
-        include/ui/stats/dialog_runtime_stats.ui
+        src/ui/stats/RuntimeStatsWidget.cpp
+        include/ui/stats/RuntimeStatsWidget.h
+        include/ui/stats/RuntimeStatsWidget.ui
         src/ui/stats/dialog_endpoint_details.cpp
         include/ui/stats/dialog_endpoint_details.h
         include/ui/stats/dialog_endpoint_details.ui
-        src/ui/stats/MiniChartWidget.cpp
-        include/ui/stats/MiniChartWidget.h
 
-        src/ui/setting/dialog_hotkey.cpp
-        include/ui/setting/dialog_hotkey.h
-        include/ui/setting/dialog_hotkey.ui
+        src/ui/setting/dialog_integration.cpp
+        include/ui/setting/dialog_integration.h
+        include/ui/setting/dialog_integration.ui
 
         src/ui/profile/ProxyItem.cpp
         include/ui/profile/ProxyItem.h
@@ -387,6 +494,8 @@ set(PROJECT_SOURCES
 
         src/ui/setting/RawRouteItem.cpp
         include/ui/setting/RawRouteItem.h
+        src/ui/setting/RouteDnsEditor.cpp
+        include/ui/setting/RouteDnsEditor.h
 
         res/Throne.qrc
         ${QV2RAY_RC}
@@ -395,7 +504,6 @@ set(PROJECT_SOURCES
         src/ui/profile/edit_ssh.cpp
         include/ui/profile/edit_ssh.h
         include/ui/profile/edit_ssh.ui
-        include/ui/mainwindow_interface.h
         include/stats/connections/connectionLister.hpp
         src/stats/connectionLister/connectionLister.cpp
         include/sys/windows/eventHandler.h
@@ -452,6 +560,8 @@ set(PROJECT_SOURCES
         src/configs/outbounds/vless.cpp
         src/configs/outbounds/vmess.cpp
         src/configs/outbounds/wireguard.cpp
+        include/configs/outbounds/masque.h
+        src/configs/outbounds/masque.cpp
         include/configs/outbounds/openvpn.h
         src/configs/outbounds/openvpn.cpp
         include/configs/outbounds/openconnect.h
@@ -494,26 +604,38 @@ set(PROJECT_SOURCES
         include/database/GroupsRepo.h
         include/database/RoutesRepo.h
         include/database/OtpProfilesRepo.h
+        include/database/IpListsRepo.h
+        include/database/IpScansRepo.h
         include/database/SettingsRepo.h
         include/database/TrafficStatsRepo.h
+        include/database/MarkersRepo.h
 
         include/database/entities/Profile.h
         include/database/entities/Group.h
+        include/database/entities/GroupSort.h
         include/database/entities/RouteProfile.h
         include/database/entities/RouteRule.h
         include/database/entities/OtpProfile.h
+        include/database/entities/IpList.h
+        include/database/entities/IpScan.h
+        include/database/entities/EndpointSource.h
 
         src/database/entities/Profile.cpp
         src/database/entities/Group.cpp
         src/database/entities/RouteProfile.cpp
         src/database/entities/RouteRule.cpp
         src/database/entities/OtpProfile.cpp
+        src/database/entities/IpScan.cpp
+        src/database/entities/EndpointSource.cpp
 
         src/database/ProfilesRepo.cpp
         src/database/GroupsRepo.cpp
         src/database/RoutesRepo.cpp
         src/database/OtpProfilesRepo.cpp
+        src/database/IpListsRepo.cpp
+        src/database/IpScansRepo.cpp
         src/database/TrafficStatsRepo.cpp
+        src/database/MarkersRepo.cpp
 
         include/database/DatabaseManager.h
         src/database/DatabaseManager.cpp
@@ -524,6 +646,8 @@ set(PROJECT_SOURCES
         src/configs/sub/warp.cpp
         include/global/Common.h
         src/global/Common.cpp
+        include/ui/app/GuiStartup.h
+        src/ui/app/GuiStartup.cpp
 )
 
 if (NOT APPLE AND Qt6_VERSION VERSION_GREATER_EQUAL 6.9.0)
@@ -552,11 +676,118 @@ if (DASHBOARD_FILES)
             PROPERTY AUTORCC_OPTIONS "--compress-algo;zlib;--compress;9;--threshold;5")
 endif ()
 
+# Portable headless glue (sys layer, no <windows.h>), right before the engine block so it only regroups the trailing batches.
+set(HEADLESS_SYS_SOURCES
+        include/sys/ServiceManager.hpp
+        src/sys/ServiceManager.cpp
+        include/sys/HostPresence.hpp
+        src/sys/HostPresence.cpp
+        include/sys/HostTun.hpp
+        src/sys/HostTun.cpp
+)
+list(APPEND PROJECT_SOURCES ${HEADLESS_SYS_SOURCES})
+
+# Appended last so engine TUs form trailing MSVC unity batches: adding one never regroups the batches above.
+set(ENGINE_SOURCES
+        include/engine/EngineTypes.h
+        include/engine/EngineControl.h
+        include/engine/EnginePolicy.h
+        include/engine/EngineTr.h
+        include/engine/ThreadCheck.h
+        include/engine/Lifecycle.h
+        src/engine/Lifecycle.cpp
+        include/engine/EngineEvents.h
+        src/engine/EngineEvents.cpp
+        include/engine/app/Bootstrap.h
+        src/engine/app/Bootstrap.cpp
+        include/engine/app/DataDirLock.h
+        src/engine/app/DataDirLock.cpp
+        include/engine/app/ConfigDump.h
+        src/engine/app/ConfigDump.cpp
+        include/engine/vpn/VpnAuth.h
+        include/engine/vpn/VpnEndpoints.h
+        src/engine/vpn/VpnEndpoints.cpp
+        include/engine/headless/HeadlessPolicy.h
+        src/engine/headless/HeadlessPolicy.cpp
+        include/engine/EditLocks.h
+        src/engine/EditLocks.cpp
+        include/engine/services/ServiceTypes.h
+        include/engine/services/ImportService.h
+        src/engine/services/ImportService.cpp
+        include/engine/services/GroupService.h
+        src/engine/services/GroupService.cpp
+        include/engine/services/ProfileService.h
+        src/engine/services/ProfileService.cpp
+        include/engine/services/SettingsRegistry.h
+        src/engine/services/SettingsRegistry.cpp
+        include/engine/services/BackupArchive.h
+        src/engine/services/BackupArchive.cpp
+        include/engine/services/WebDavBackup.h
+        src/engine/services/WebDavBackup.cpp
+        include/engine/services/AssetUpdates.h
+        src/engine/services/AssetUpdates.cpp
+        include/engine/services/StatsService.h
+        src/engine/services/StatsService.cpp
+        include/engine/tests/TestObserver.h
+        include/engine/tests/TestRunner.h
+        src/engine/tests/TestRunner.cpp
+        include/engine/autoselector/AutoSelectorController.h
+        src/engine/autoselector/AutoSelectorController.cpp
+        include/engine/connection/ConnectionManager.h
+        src/engine/connection/ConnectionManager.cpp
+        src/engine/connection/ConnectionModes.cpp
+        include/engine/vpn/VpnAuthController.h
+        src/engine/vpn/VpnAuthController.cpp
+        include/engine/services/Dashboard.h
+        src/engine/services/Dashboard.cpp
+        include/engine/app/InstanceServer.h
+        src/engine/app/InstanceServer.cpp
+        include/engine/app/ExitController.h
+        src/engine/app/ExitController.cpp
+        include/engine/EngineHost.h
+        src/engine/EngineHost.cpp
+        include/engine/RuntimeOptions.h
+        include/engine/app/ExitCodes.h
+        include/engine/headless/HeadlessCli.h
+        src/engine/headless/HeadlessCli.cpp
+        include/engine/headless/ResumeGuard.h
+        src/engine/headless/ResumeGuard.cpp
+        include/engine/headless/RuntimeStatus.h
+        src/engine/headless/RuntimeStatus.cpp
+        include/engine/headless/HeadlessApi.h
+        src/engine/headless/HeadlessApi.cpp
+        include/engine/headless/HeadlessInstance.h
+        src/engine/headless/HeadlessInstance.cpp
+        include/engine/headless/HeadlessRuntime.h
+        src/engine/headless/HeadlessRuntime.cpp
+        include/engine/headless/SupervisorLink.h
+        src/engine/headless/SupervisorLink.cpp
+        include/engine/headless/Preflight.h
+        src/engine/headless/Preflight.cpp
+        include/engine/headless/HeadlessMain.h
+        src/engine/headless/HeadlessMain.cpp
+        # Last: its <windows.h> macros must not reach a later TU of the same MSVC unity batch.
+        include/engine/supervisor/CoreSupervisor.h
+        src/engine/supervisor/CoreSupervisor.cpp
+)
+list(APPEND PROJECT_SOURCES ${ENGINE_SOURCES})
+# Windows only (cmake/windows/windows.cmake); empty elsewhere.
+list(APPEND PROJECT_SOURCES ${PLATFORM_HEADLESS_SOURCES})
+
 # Qt exe
 qt_add_executable(Throne
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
 )
+
+option(THRONE_ENGINE_LINT "Check the engine/UI boundary on every build" ON)
+if (THRONE_ENGINE_LINT)
+    add_custom_target(engine_boundary
+            COMMAND ${CMAKE_COMMAND} -DROOT=${CMAKE_SOURCE_DIR} -P ${CMAKE_SOURCE_DIR}/cmake/EngineBoundary.cmake
+            COMMENT "Checking the engine/UI boundary"
+            VERBATIM)
+    add_dependencies(Throne engine_boundary)
+endif ()
 
 # Target
 
@@ -585,6 +816,7 @@ if (WIN32 AND MSVC)
     set_target_properties(Throne PROPERTIES UNITY_BUILD ON)
 endif ()
 set_property(SOURCE "3rdparty/SQLiteCpp/src/sqlite3.c" PROPERTY SKIP_UNITY_BUILD_INCLUSION ON)
+set_property(SOURCE "3rdparty/monocypher/monocypher.c" PROPERTY SKIP_UNITY_BUILD_INCLUSION ON)
 
 # Verified to link. OMIT_VIRTUALTABLE/VIEW/ANALYZE/CTE/WINDOWFUNC/DECLTYPE all break this build.
 target_compile_definitions(Throne PRIVATE
@@ -618,6 +850,9 @@ set(TS_FILES
 set(LUPDATE_OPTIONS
         -locations none -no-obsolete
 )
+# lupdate sees only the target's include paths; without the repo root it cannot resolve EngineTr.h, and files the
+# MainWindowTr::tr strings under a MainWindowTr context instead of MainWindow.
+target_include_directories(Throne PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 qt_add_lupdate(Throne TS_FILES ${TS_FILES} OPTIONS ${LUPDATE_OPTIONS})
 qt_add_lrelease(Throne TS_FILES ${TS_FILES} QM_FILES_OUTPUT_VARIABLE QM_FILES)
 

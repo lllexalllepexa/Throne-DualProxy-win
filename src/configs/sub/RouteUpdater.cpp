@@ -1,6 +1,7 @@
 #include "include/configs/sub/RouteUpdater.hpp"
 
 #include <QDateTime>
+#include <QSet>
 #include <QStringList>
 
 #include "include/global/Configs.hpp"
@@ -15,7 +16,7 @@ namespace RouteUpdate {
         const QString url = profile->remoteURL.trimmed();
         if (url.isEmpty()) return QObject::tr("remote URL is empty");
 
-        auto resp = NetworkRequestHelper::HttpGet(Configs::get_jsdelivr_link(url), false);
+        auto resp = NetworkRequestHelper::HttpGet(Configs::get_jsdelivr_link(url));
         if (!resp.error.isEmpty()) return resp.error;
 
         QString fatal, warn;
@@ -27,15 +28,20 @@ namespace RouteUpdate {
 
         // endpoint rules belong to the local profile, so they survive the swap by index
         QList<QPair<int, std::shared_ptr<Configs::RouteRule>>> endpointRules;
+        QSet<QString> disabledNames;
         for (int i = 0; i < profile->Rules.size(); i++) {
             if (profile->Rules[i]->type == Configs::endpointPreferredBy) endpointRules << qMakePair(i, profile->Rules[i]);
+            else if (profile->Rules[i]->disabled) disabledNames << profile->Rules[i]->name;
         }
 
         profile->isRaw = false;
         profile->rawRoute.clear();
         profile->Rules.clear();
         for (const auto& rule : fetched->Rules) {
-            if (rule->type != Configs::endpointPreferredBy) profile->Rules << rule;
+            if (rule->type == Configs::endpointPreferredBy) continue;
+            // A rule switched off locally stays off across refreshes, matched by name.
+            if (disabledNames.contains(rule->name)) rule->disabled = true;
+            profile->Rules << rule;
         }
         for (const auto& [index, rule] : endpointRules) {
             profile->Rules.insert(std::min<qsizetype>(index, profile->Rules.size()), rule);

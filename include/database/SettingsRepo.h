@@ -2,6 +2,7 @@
 
 #include "Database.h"
 #include "include/global/Const.hpp"
+#include "include/sys/UrlScheme.hpp"
 #include <QMutexLocker>
 #include <QJsonObject>
 #include <QMap>
@@ -15,7 +16,8 @@
 namespace Configs {
     // Loopback/broadcast are deliberately absent: routing them into the tun breaks the sing-box <-> Xray bridges and local DNS.
     inline QStringList defaultTunPrivateRanges() {
-        return {"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "224.0.0.0/4"};
+        return {"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "224.0.0.0/4",
+                "fc00::/7", "fe80::/10", "ff00::/8"};
     }
 
     class SettingsRepo {
@@ -42,6 +44,8 @@ namespace Configs {
         // Runtime state and flags below are never persisted.
         QString core_socket_name = "";
         int started_id = NoProfileId;
+        // Dual Proxy: the profile the running config serves on the secondary port; main thread only.
+        int started_secondary_id = NoProfileId;
         bool core_running = false;
         bool prepare_exit = false;
         bool spmode_vpn = false;
@@ -59,12 +63,16 @@ namespace Configs {
         bool flag_tray = false;
         bool flag_debug = false;
         bool flag_restart_tun_on = false;
-        bool flag_dns_set = false;
-        
+
         // Persisted settings.
         QString mainWindowGeometry;
         QString log_level = "info";
         QString test_latency_url = "http://cp.cloudflare.com/";
+        // Fetched WITHOUT any proxy, so it must be reachable directly; empty falls back to the OS.
+        QString direct_test_url = "";
+        // Both keys are shared with the Android app's settings table; the provider is a Configs_network::ExitLookupProviders() id.
+        bool exit_country_lookup = true;
+        QString exit_lookup_provider = "auto";
         int url_test_timeout_ms = 3000;
         bool disable_tray = false;
         int test_concurrent = 10;
@@ -106,14 +114,23 @@ namespace Configs {
         QStringList log_include_regex = {};
         QStringList log_exclude_keyword = {};
         QStringList log_exclude_regex = {};
-        bool log_auto_scroll = true;
         bool start_minimal = false;
-        int max_log_line = 200;
+        int max_log_line = 500;
+        // Log view font; empty family / 0 size fall back to the built-in monospace list / the app font size.
+        QString log_font_family = "";
+        int log_font_size = 0;
         // On-disk diagnostic log only; log_level is the core's browser verbosity.
         QString log_file_level = "debug";
         QString splitter_state = "";
         bool enable_stats = true;
         int stats_tab = 0; // either connection or log
+        // LiveChartState of the traffic graph; keys are Stats::TrafficLine keys.
+        QStringList traffic_graph_hidden = {};
+        // Bit 0 hides download, bit 1 upload.
+        int traffic_graph_hidden_dirs = 0;
+        int traffic_graph_range = 1;
+        bool traffic_graph_smooth = true;
+        bool traffic_graph_markers = true;
         // Stats::ConnectionSort; 0 == Stats::Default, the core's own ordering.
         int connection_sort = 0;
         bool connection_sort_asc = false;
@@ -124,7 +141,6 @@ namespace Configs {
         int speed_test_timeout_ms = 5000;
         QString simple_dl_url = "http://cachefly.cachefly.net/1mb.test";
         bool allow_beta_update = false;
-        bool show_system_dns = false;
         bool use_custom_icons = false;
         bool follow_status_in_taskbar = true;
         bool skip_delete_confirmation = false;
@@ -132,9 +148,11 @@ namespace Configs {
         // -1 until a filter column has been used.
         int last_filter_column = -1;
 
-        // Mirror of the throne:// registration we last wrote to the OS; startup re-registers only when it differs.
+        // Mirrors of the registrations we last wrote to the OS; startup re-registers only when they differ.
         QString url_scheme_mirror = "";
-        bool url_scheme_auto_register = true;
+        bool url_scheme_auto_register = UrlScheme_AutoRegisterByDefault();
+        QString file_assoc_mirror = "";
+        bool file_assoc_auto_register = false;
 
         // Network
         bool net_use_proxy = false;
@@ -143,9 +161,13 @@ namespace Configs {
 
         // Subscription
         QString user_agent = ""; // set at main.cpp
-        // Sign encodes enabled (negative = off), magnitude = interval minutes (ignored if < 30); *_last is epoch seconds.
+        // Configs::subTlsVersion / Configs::subHttpVersion values.
+        int sub_tls_version = 0;
+        int sub_http_version = 0;
+        // Sign encodes enabled (negative = off), magnitude = interval minutes (ignored if < 30).
         int sub_auto_update = -30;
-        qint64 sub_auto_update_last = 0;
+        // Follow a server's profile-update-interval instead of sub_auto_update's minutes.
+        bool sub_respect_server_interval = false;
         bool sub_clear = false;
         bool sub_show_change_popup = true;
         bool sub_send_hwid = false;
@@ -157,6 +179,26 @@ namespace Configs {
         QString utlsFingerprint = "";
         bool disable_run_admin = false; // windows only
         bool use_mozilla_certs = false;
+        bool kill_switch = false;
+
+        // Remote API
+        bool remote_api_enable = false;
+        bool remote_api_lan = false;
+        bool remote_api_admin_lan = false;
+        int remote_api_port = 9095;
+        QString remote_api_key = "";
+        // CIDRs separated by commas or whitespace; empty allows every LAN address.
+        QString remote_api_allow = "";
+
+        // WebDAV backup and this device's identity: device-local, see BackupArchive::DeviceLocalSettingKeys().
+        QString webdav_server = "";
+        QString webdav_user = "";
+        QString webdav_pass = "";
+        QString webdav_path = "Throne";
+        bool webdav_use_proxy = false;
+        // Generated on first use; an empty name means the host name.
+        QString device_id = "";
+        QString device_name = "";
 
         // Remember
         bool remember_system_proxy = false;
@@ -175,9 +217,13 @@ namespace Configs {
         bool remote_dns_disable_ipv6 = false;
         QString direct_dns = "localhost";
         bool direct_dns_disable_ipv6 = false;
+        // Servers typed into the remote / direct DNS fields, newest first.
+        QStringList remote_dns_history = {};
+        QStringList direct_dns_history = {};
         int dns_cache_capacity = 65536;
         bool dns_disable_cache = false;
         bool dns_disable_expire = false;
+        bool dns_persist_cache = false;
         bool dns_reverse_mapping = false;
         bool enable_dns_routing = true;
         bool use_dns_object = false;
@@ -208,6 +254,7 @@ namespace Configs {
         bool enable_secondary_inbound = false;
         int secondary_inbound_port = 2081;
         int secondary_profile_id = NoProfileId;
+        // The last profile started as primary; a manual stop keeps it (remember_id does not).
         int primary_profile_id = NoProfileId;
 
         // Routing
@@ -219,17 +266,12 @@ namespace Configs {
         bool fake_dns = false;
         bool fakeip_disable_ipv6 = false;
         bool enable_tun_routing = false;
-#ifdef Q_OS_MACOS
-        QString vpn_implementation = "gvisor";
-        bool vpn_strict_route = false;
-#elif defined(Q_OS_WIN)
-        QString vpn_implementation = WinVersion::IsBuildNumGreaterOrEqual(BuildNumber::Windows_10_1507) ? "system" : "gvisor";
+#ifdef Q_OS_WIN
         bool vpn_strict_route = WinVersion::IsBuildNumGreaterOrEqual(BuildNumber::Windows_10_1507);
 #else
-        QString vpn_implementation = "system";
         bool vpn_strict_route = false;
 #endif
-        // Linux only: newer kernels need `auto_redirect` for the system/mixed stacks to pass traffic, at the cost of acting as a gateway.
+        // Linux only; while on, the host cannot act as a network gateway.
         bool vpn_auto_redirect = true;
         // Only UDP and ICMP reach the bridge: pre-match aborts at the sniff rule for TCP.
         bool vpn_l3_bridge = false;
@@ -255,20 +297,15 @@ namespace Configs {
         QStringList warp_ifc_addrs = {};
         QString warp_ep = "";
         QStringList warp_reserved = {};
-
-        // Hijack
-        bool enable_dns_server = false;
-        bool dns_server_listen_lan = false;
-        int dns_server_listen_port = 53;
-        QString dns_v4_resp = "127.0.0.1";
-        QString dns_v6_resp = "::1";
-        QStringList dns_server_rules = {};
-        bool enable_redirect = false;
-        QString redirect_listen_address = "127.0.0.1";
-        int redirect_listen_port = 443;
-
-        // System dns
-        bool system_dns_set = false;
+        bool warp_tos_accepted = false;
+        QString warp_mode = "wireguard"; // "wireguard" or "masque"
+        QString warp_masque_private_key = "";
+        QString warp_masque_peer_public_key = "";
+        QString warp_masque_ep = "";
+        QStringList warp_masque_ifc_addrs = {};
+        QString warp_masque_sni = "consumer-masque.cloudflareclient.com";
+        int warp_masque_http_mode = 0; // 0 = HTTP/3 with fallback, 1 = HTTP/3 only, 2 = HTTP/2
+        QStringList warp_api_hosts = {}; // registration API domains, tried in order; empty = api.cloudflareclient.com
 
         // Hotkey
         QString hotkey_mainwindow = "";
@@ -276,6 +313,8 @@ namespace Configs {
         QString hotkey_route = "";
         QString hotkey_system_proxy_menu = "";
         QString hotkey_toggle_system_proxy = "";
+        QString hotkey_toggle_connection = "";
+        QString hotkey_toggle_tun = "";
 
         // Core
         int core_box_clash_api = -9090;
@@ -295,6 +334,9 @@ namespace Configs {
         // Fetched on demand into GetBasePath(), which the core exposes to Xray via XRAY_LOCATION_ASSET.
         QString xray_geoip_url = "https://github.com/Loyalsoldier/v2ray-rules-dat/raw/release/geoip.dat";
         QString xray_geosite_url = "https://github.com/Loyalsoldier/v2ray-rules-dat/raw/release/geosite.dat";
+        // Last 5 hand-typed URLs per field, offered alongside the built-in providers.
+        QStringList xray_geoip_url_history = {};
+        QStringList xray_geosite_url_history = {};
 
         // Extra Core Paths
         QStringList extraCorePaths = {};
@@ -305,6 +347,17 @@ namespace Configs {
         QStringList dial_inet6_bind_address_history = {};
 
         void UpdateStartedId(int id);
+
+        // Dual Proxy: the configured secondary profile, or NoProfileId while the secondary inbound is off.
+        [[nodiscard]] int SecondaryProfileId() const {
+            return enable_secondary_inbound && secondary_profile_id >= 0 ? secondary_profile_id : NoProfileId;
+        }
+
+        // Turns the secondary inbound off and forgets its profile; saves.
+        void ClearSecondaryProxy();
+
+        // Why port cannot carry the secondary inbound (out of 1024-65535, or taken by another listener of ours), or empty.
+        [[nodiscard]] QString SecondaryPortConflict(int port) const;
 
         [[nodiscard]] QString GetUserAgent(bool isDefault = false) const;
         

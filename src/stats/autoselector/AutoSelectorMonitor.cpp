@@ -2,10 +2,10 @@
 
 #include "include/api/RPC.h"
 #include "include/database/DatabaseManager.h"
+#include "include/database/GroupsRepo.h"
 #include "include/database/ProfilesRepo.h"
 #include "include/configs/outbounds/autoselector.h"
 #include "include/database/entities/Profile.h"
-#include "include/ui/mainwindow_interface.h"
 
 #include <QDateTime>
 #include <QThread>
@@ -44,7 +44,8 @@ namespace Stats
                 .arg(membersTotal);
         }
         if (membersAlive == 0) {
-            return QObject::tr("Auto selector — no working profile out of %1").arg(membersTotal);
+            return QObject::tr("Auto selector — no working profile out of %1, still checking")
+                .arg(membersTotal);
         }
         QString base = QObject::tr("Auto selector on %1 (%2 of %3 working)")
                            .arg(selectedName.isEmpty() ? selectedTag : selectedName)
@@ -131,6 +132,7 @@ namespace Stats
         }
         if (dirty.isEmpty()) return;
         Configs::dataManager->profilesRepo->SaveBatch(dirty);
+        Configs::RepositionLater(dirty, Configs::SortInput::TestResult);
     }
 
     void AutoSelectorMonitor::Clear()

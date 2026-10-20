@@ -25,6 +25,12 @@ namespace Stats
         BySource
     };
 
+    // The core sends M.Socksaddr.String(): "1.2.3.4:5678" or "[fe80::1]:5678", so an unbracketed form must split at the last colon.
+    QString EndpointHost(const QString& endpoint);
+
+    // Unflipped sorts put the biggest number first but text A→Z, so `ascending` alone does not say which way rows run.
+    bool SortIsDescending(ConnectionSort sort, bool ascending);
+
     class ConnectionMetadata
     {
         public:
@@ -32,7 +38,8 @@ namespace Stats
         long long createdAtMs;
         long long upload;
         long long download;
-        QString outbound;
+        QString outbound;     // the core's tag, e.g. route-0
+        QString outboundName; // the profile behind the tag, else the tag itself
         QString network;
         QString dest;
         QString protocol;
@@ -70,6 +77,9 @@ namespace Stats
 
         bool isSortAscending() const { return asc; }
 
+        // Tag -> profile name of the running config; empty while stopped.
+        void SetOutboundNames(const QHash<QString, QString>& names);
+
     private:
         // Off-view polls still sample the traffic stats; only the sort and the UI push are skipped.
         void update(bool pushToUi);
@@ -102,6 +112,9 @@ namespace Stats
         // The core's closed ring is non-draining, so closed ids must be deduped; both are rebuilt each poll.
         QHash<QString, QPair<qint64, qint64>> lastBytes_;
         QSet<QString> accountedClosed_;
+
+        QMutex namesMu_;
+        QHash<QString, QString> outboundNames_;
     };
 
     extern ConnectionLister* connection_lister;

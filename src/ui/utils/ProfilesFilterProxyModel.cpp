@@ -7,7 +7,6 @@ namespace {
 
 ProfilesFilterProxyModel::ProfilesFilterProxyModel(QObject *parent)
     : QSortFilterProxyModel(parent) {
-    // Re-tests a row on dataChanged, so a test result arriving mid-run moves it in or out of the filter.
     setDynamicSortFilter(true);
 }
 
@@ -62,7 +61,8 @@ bool ProfilesFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex
     if (!m_address.isEmpty()) {
         if (m_address.startsWith(portPrefix)) {
             if (!portMatches(key->port)) return false;
-        } else if (!key->address.contains(m_address, Qt::CaseInsensitive)) {
+        } else if (!key->address.contains(m_address, Qt::CaseInsensitive) &&
+                   !key->effectiveAddress.contains(m_address, Qt::CaseInsensitive)) {
             return false;
         }
     }

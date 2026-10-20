@@ -1,0 +1,145 @@
+# Dual Proxy fork: builds the Windows x64 GUI and its core from the same commit and packs the release zip.
+# build.yml stays upstream's (manual, every platform); this one runs on every push and pull request.
+name: Dual Proxy Windows x64
+on:
+  push:
+    branches: [main, "sync/**"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version label for the zip (defaults to the short commit)"
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: dualproxy-windows-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  GO_VERSION: "1.27.2"
+  QT_VERSION: "6.12.0"
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checking out sources
+        uses: actions/checkout@v7.0.1
+      - name: Checking the engine/UI boundary
+        run: cmake -DROOT=${{ github.workspace }} -P cmake/EngineBoundary.cmake
+  core:
+    runs-on: ubuntu-22.04
+    env:
+      DEST: ${{ github.workspace }}/deployment/windows-amd64
+    steps:
+      - name: Checking out sources
+        uses: actions/checkout@v7.0.1
+      - name: Install Golang
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: core/go.sum
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "31.1"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Installing protoc-gen-go
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
+      - name: Build golang parts
+        shell: bash
+        run: GOOS=windows GOARCH=amd64 ./script/build_go.sh
+      - name: Tar files
+        run: tar czf artifacts.tgz ./deployment
+      - name: Uploading Artifact
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: core-windows-amd64
+          path: artifacts.tgz
+          compression-level: 0
+  gui:
+    needs: [lint, core]
+    runs-on: windows-latest
+    env:
+      DEST: ${{ github.workspace }}/deployment/windows-amd64
+      DEST_SUFFIX: windows-amd64
+      ARCH: x64
+    steps:
+      - name: Checking out sources
+        uses: actions/checkout@v7.0.1
+      - name: Checking out the web dashboard
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: SagerNet/sing-box-dashboard
+          ref: gh-pages
+          path: dashboard-src
+      - name: Bundling the web dashboard
+        shell: bash
+        run: |
+          rm -rf dashboard-src/.git || true
+          cp -R dashboard-src/. res/dashboard/
+          test -f res/dashboard/index.html
+      - name: Install MSVC compiler
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Setup compiler cache
+        uses: hendrikmuhs/ccache-action@v1.2.24
+        with:
+          key: dualproxy-windows-amd64-${{ env.QT_VERSION }}
+          variant: sccache
+          max-size: 500M
+      - name: Download the core
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: core-windows-amd64
+          path: download-artifact
+      - name: Cache Qt and OpenSSL
+        id: cache-winqt
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            qt.7z
+            openssl.7z
+          key: WinQt-${{ env.QT_VERSION }}-x64
+      - name: Download Qt and OpenSSL
+        shell: bash
+        if: steps.cache-winqt.outputs.cache-hit != 'true'
+        run: |
+          curl -fL -o qt.7z https://github.com/throneproj/buildqt/releases/download/Qt_${QT_VERSION}/Qt_${QT_VERSION}_x64.7z
+          curl -fL -o openssl.7z https://github.com/throneproj/env_windows_legacy/releases/download/latest/openssl_x64.7z
+      - name: Generate MakeFile and Build
+        shell: bash
+        run: |
+          7z x qt.7z
+          7z x openssl.7z
+          export CMAKE_PREFIX_PATH=$PWD/Qt/lib/cmake
+          export OPENSSL_ROOT_DIR=$PWD/openssl
+          mkdir build
+          cd build
+          curl -fLso srslist.h "https://raw.githubusercontent.com/throneproj/routeprofiles/rule-set/srslist.h"
+          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache ..
+          ninja
+          cd ..
+          ./script/deploy_windows.sh
+      - name: Pack
+        shell: bash
+        env:
+          LABEL: ${{ github.event.inputs.tag }}
+        run: |
+          label="${LABEL:-${GITHUB_SHA::7}}"
+          # The GUI and the core it was built against travel together; never ship this Throne.exe with another ThroneCore.
+          test -f "$DEST/Throne.exe" && test -f "$DEST/ThroneCore.exe"
+          mkdir -p pack/Throne
+          cp -R "$DEST/." pack/Throne/
+          rm -f pack/Throne/*.pdb
+          cd pack
+          7z a -tzip -mx=5 -bd -bso0 "../Throne-$label-windows64-dualproxy.zip" Throne
+      - name: Uploading the zip
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: Throne-windows64-dualproxy
+          path: Throne-*-windows64-dualproxy.zip
+          if-no-files-found: error
+          compression-level: 0

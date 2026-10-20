@@ -2,11 +2,15 @@
 
 #include <3rdparty/SQLiteCpp/include/SQLiteCpp.h>
 #include <atomic>
+#include <functional>
+#include <mutex>
 #include <string>
 #include <iostream>
 #include <vector>
 #include <utility>
 #include <type_traits>
+
+#include <QStringList>
 
 #include "include/global/Utils.hpp"
 
@@ -25,6 +29,7 @@ namespace Configs {
         std::string outbound_json;
         long long traffic_dl = 0;
         long long traffic_up = 0;
+        std::string endpoint_json = "{}";
     };
     // icons is the icons/ folder, handled by the UI layer rather than the database.
     struct BackupParts {
@@ -32,9 +37,10 @@ namespace Configs {
         bool routes = false;
         bool settings = false;
         bool otp = false;
+        bool ipLists = false;
         bool icons = false;
 
-        [[nodiscard]] bool anyDb() const { return profiles || routes || settings || otp; }
+        [[nodiscard]] bool anyDb() const { return profiles || routes || settings || otp || ipLists; }
         [[nodiscard]] bool any() const { return anyDb() || icons; }
     };
 
@@ -64,6 +70,10 @@ namespace Configs {
     // Read-only, corrupt or not a database: the file itself is unusable and retrying cannot help.
     bool IsFatalDbError(const DbError& err);
 
+    // An existing database file (or its -wal/-shm) this user cannot read and write: Unix access() fails with EACCES/EPERM;
+    // Windows the read-only attribute or, with Qt >= 6.6, the NTFS ACL. A missing file is not denied.
+    bool DbFilesDenied(const QString& dbFile);
+
     // Logs (rate-limited per query) and shows one passive notice per query per window; never blocks the caller.
     void NotifyError(const std::string& query, const DbError& err);
 
@@ -78,6 +88,7 @@ namespace Configs {
         SQLite::Database db;
         std::string path_;
         std::atomic<int> writeCount{0};
+        std::recursive_mutex writeMutex_;
         void maybeCheckpoint(int count);
         void maybeVacuum();
 
@@ -102,6 +113,9 @@ namespace Configs {
         void RunMaintenance();
 
         [[nodiscard]] const std::string& Path() const { return path_; }
+
+        // Transactions span the connection: hold this to write, or to read rows a writer may be replacing. Take it after repo locks.
+        std::recursive_mutex& WriteMutex() { return writeMutex_; }
 
     private:
 
@@ -183,9 +197,9 @@ namespace Configs {
             }
         }
 
-        // 13 bind params per row.
+        // 14 bind params per row.
         void execBatchInsertProfiles0(const std::vector<ProfileInsertRow>& rows) {
-            const size_t chunkSize = BATCH_LIMIT_WRITE / 13;
+            const size_t chunkSize = BATCH_LIMIT_WRITE / 14;
             for (size_t off = 0; off < rows.size(); off += chunkSize) {
                 size_t end = std::min(off + chunkSize, rows.size());
                 std::vector<ProfileInsertRow> chunk(rows.begin() + static_cast<std::ptrdiff_t>(off),
@@ -195,7 +209,7 @@ namespace Configs {
         }
 
         void execBatchReplaceProfiles0(const std::vector<ProfileInsertRow>& rows) {
-            const size_t chunkSize = BATCH_LIMIT_WRITE / 13;
+            const size_t chunkSize = BATCH_LIMIT_WRITE / 14;
             for (size_t off = 0; off < rows.size(); off += chunkSize) {
                 size_t end = std::min(off + chunkSize, rows.size());
                 std::vector<ProfileInsertRow> chunk(rows.begin() + static_cast<std::ptrdiff_t>(off),
@@ -221,6 +235,23 @@ namespace Configs {
         }
 
         template<typename... Args>
+        int execChanges(const std::string& sql, Args&&... args) {
+            try {
+                SQLite::Statement query(db, sql);
+                bindArgs(query, 1, std::forward<Args>(args)...);
+                const int changes = query.exec();
+                maybeCheckpoint(1);
+                return changes;
+            } catch (std::exception& e) {
+                NotifyError(sql, e);
+                return -1;
+            }
+        }
+
+        // BEGIN IMMEDIATE .. COMMIT under WriteMutex(); body returning false rolls back quietly, a throw rolls back and is reported as op.
+        bool transaction(const std::string& op, const std::function<bool()>& body);
+
+        template<typename... Args>
         std::unique_ptr<SQLite::Statement> queryThrow(const std::string& sql, Args&&... args) {
             return query0(sql, std::forward<Args>(args)...);
         }
@@ -243,6 +274,9 @@ namespace Configs {
                 NotifyError("execDeleteByIdIn for " + table, e);
             }
         }
+
+        // Throws instead of swallowing, so a caller's explicit transaction aborts as one unit.
+        void execDeleteByIdInThrow(const std::string& table, const std::string& idColumn, const std::vector<int>& ids);
 
         void execBatchSettingsReplace(const std::vector<std::pair<std::string, std::string>>& keyValues) {
             try {
@@ -283,9 +317,12 @@ namespace Configs {
         void restoreFrom(const std::string& srcPath);
 
         // entity_ids is always retained so restored IDs stay consistent; caller must delete destPath first. Throws on failure.
-        void backupSelective(const std::string& destPath, const BackupParts& parts);
+        // excludedSettingKeys (DB key names) are left out of a settings backup.
+        void backupSelective(const std::string& destPath, const BackupParts& parts, const QStringList& excludedSettingKeys = {});
 
-        // Only columns present in both schemas are copied, so cross-version backups still restore. Throws on failure.
-        void restoreSelective(const std::string& srcPath, const BackupParts& parts);
+        // Only columns present in both schemas are copied, so cross-version backups still restore; a route rule with data
+        // in a column this schema lacks is skipped instead. Returns the number of skipped route rules. Throws on failure.
+        // preservedSettingKeys (DB key names) keep this database's values when settings are restored.
+        int restoreSelective(const std::string& srcPath, const BackupParts& parts, const QStringList& preservedSettingKeys = {});
     };
 }

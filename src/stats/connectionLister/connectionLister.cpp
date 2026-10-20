@@ -1,8 +1,11 @@
 #include <QThread>
 #include <QDateTime>
-#include <core/server/gen/libcore.pb.h>
+#include <QObject>
+#include <core/gen/libcore.pb.h>
 #include <include/api/RPC.h>
-#include "include/ui/mainwindow_interface.h"
+#include "include/database/DatabaseManager.h"
+#include "include/global/Utils.hpp"
+#include "include/stats/StatsSink.hpp"
 #include <include/stats/connections/connectionLister.hpp>
 #include "include/stats/traffic/TrafficStatsManager.hpp"
 #include "include/global/LocalNetwork.hpp"
@@ -49,12 +52,7 @@ namespace Stats
             if (!forced && (suspend || !Configs::dataManager->settingsRepo->enable_stats)) continue;
 
             mu.lock();
-            try {
-                update(forced || inView_.load());
-            } catch (const std::exception& e) {
-                // Ignore exception to keep the loop alive
-            } catch (...) {
-            }
+            update(forced || inView_.load());
             mu.unlock();
         }
     }
@@ -69,8 +67,7 @@ namespace Stats
         }
     }
 
-    // The core sends M.Socksaddr.String(): "1.2.3.4:5678" or "[fe80::1]:5678", so an unbracketed form must split at the last colon.
-    static QString endpointHost(const QString& endpoint)
+    QString EndpointHost(const QString& endpoint)
     {
         if (endpoint.startsWith('['))
         {
@@ -81,24 +78,33 @@ namespace Stats
         return colon < 0 ? endpoint : endpoint.left(colon);
     }
 
-    static ConnectionMetadata metaFromProto(const libcore::ConnectionMetaData& conn, const QString& localLabel)
+    void ConnectionLister::SetOutboundNames(const QHash<QString, QString>& names)
+    {
+        QMutexLocker lk(&namesMu_);
+        outboundNames_ = names;
+    }
+
+    static ConnectionMetadata metaFromProto(const libcore::ConnectionMetaData& conn, const QString& localLabel,
+                                            const QHash<QString, QString>& outboundNames)
     {
         ConnectionMetadata c;
-        c.id = QString::fromStdString(conn.id.value_or(""));
-        c.createdAtMs = conn.created_at.value_or(0);
-        c.dest = QString::fromStdString(conn.dest.value_or(""));
-        c.upload = conn.upload.value_or(0);
-        c.download = conn.download.value_or(0);
-        c.domain = QString::fromStdString(conn.domain.value_or(""));
-        c.network = QString::fromStdString(conn.network.value_or(""));
-        c.outbound = QString::fromStdString(conn.outbound.value_or(""));
-        c.process = QString::fromStdString(conn.process.value_or(""));
-        c.processPath = QString::fromStdString(conn.process_path.value_or(""));
-        c.protocol = QString::fromStdString(conn.protocol.value_or(""));
-        c.closedAtMs = conn.closed_at.value_or(0);
-        c.source = QString::fromStdString(conn.source.value_or(""));
+        c.id = QString::fromStdString(conn.id.value());
+        c.createdAtMs = conn.created_at.value();
+        c.dest = QString::fromStdString(conn.dest.value());
+        c.upload = conn.upload.value();
+        c.download = conn.download.value();
+        c.domain = QString::fromStdString(conn.domain.value());
+        c.network = QString::fromStdString(conn.network.value());
+        c.outbound = QString::fromStdString(conn.outbound.value());
+        c.outboundName = outboundNames.value(c.outbound);
+        if (c.outboundName.isEmpty()) c.outboundName = c.outbound;
+        c.process = QString::fromStdString(conn.process.value());
+        c.processPath = QString::fromStdString(conn.process_path.value());
+        c.protocol = QString::fromStdString(conn.protocol.value());
+        c.closedAtMs = conn.closed_at.value();
+        c.source = QString::fromStdString(conn.source.value());
         // In tun mode our own traffic enters with the tun's (or this machine's LAN) address, so a loopback-only test would label it a LAN client.
-        const QString host = endpointHost(c.source);
+        const QString host = EndpointHost(c.source);
         c.sourceDisplay = host.isEmpty() || LocalNetwork::IsOwnAddress(host) ? localLabel : host;
         return c;
     }
@@ -132,11 +138,32 @@ namespace Stats
         }
     }
 
+    bool SortIsDescending(const ConnectionSort sort, const bool ascending)
+    {
+        switch (sort)
+        {
+        case Default:
+            return false;
+        case ByProcess:
+        case ByOutbound:
+        case ByProtocol:
+        case BySource:
+            return ascending;
+        default:
+            return !ascending;
+        }
+    }
+
     void ConnectionLister::update(const bool pushToUi)
     {
         libcore::QueryConnectionsResp resp = API::defaultClient->QueryConnections();
         const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
         const QString localLabel = QObject::tr("Local");
+        QHash<QString, QString> outboundNames;
+        {
+            QMutexLocker lk(&namesMu_);
+            outboundNames = outboundNames_;
+        }
 
         QList<ConnectionMetadata> rows;
         rows.reserve(static_cast<qsizetype>(resp.active.size()));
@@ -145,7 +172,7 @@ namespace Stats
 
         for (const auto& conn : resp.active)
         {
-            auto c = metaFromProto(conn, localLabel);
+            auto c = metaFromProto(conn, localLabel, outboundNames);
 
             SpeedSample s;
             if (const auto it = speedSamples_.constFind(c.id); it != speedSamples_.constEnd())
@@ -190,7 +217,7 @@ namespace Stats
 
             auto credit = [&](const libcore::ConnectionMetaData& cm, qint64 curUp, qint64 curDown)
             {
-                const QString id = QString::fromStdString(cm.id.value_or(""));
+                const QString id = QString::fromStdString(cm.id.value());
                 qint64 baseUp = 0, baseDown = 0;
                 if (const auto it = lastBytes_.constFind(id); it != lastBytes_.constEnd())
                 {
@@ -202,24 +229,24 @@ namespace Stats
                 if (dUp < 0) dUp = 0;
                 if (dDown < 0) dDown = 0;
                 if (dUp == 0 && dDown == 0) return;
-                QString name = QString::fromStdString(cm.process.value_or(""));
+                QString name = QString::fromStdString(cm.process.value());
                 if (name.isEmpty()) name = "Unknown";
-                trafficStatsManager->AddAppDelta(name, QString::fromStdString(cm.process_path.value_or("")), dUp, dDown);
+                trafficStatsManager->AddAppDelta(name, QString::fromStdString(cm.process_path.value()), dUp, dDown);
             };
 
             for (const auto& cm : resp.active)
             {
-                const qint64 up = cm.upload.value_or(0);
-                const qint64 down = cm.download.value_or(0);
+                const qint64 up = cm.upload.value();
+                const qint64 down = cm.download.value();
                 credit(cm, up, down);
-                newLast.insert(QString::fromStdString(cm.id.value_or("")), {up, down});
+                newLast.insert(QString::fromStdString(cm.id.value()), {up, down});
             }
             for (const auto& cm : resp.closed)
             {
-                const QString id = QString::fromStdString(cm.id.value_or(""));
+                const QString id = QString::fromStdString(cm.id.value());
                 currentClosed.insert(id);
                 if (accountedClosed_.contains(id)) continue;
-                credit(cm, cm.upload.value_or(0), cm.download.value_or(0));
+                credit(cm, cm.upload.value(), cm.download.value());
             }
             lastBytes_ = newLast;             // drop evicted / now-closed live ids
             accountedClosed_ = currentClosed; // everything in the ring is accounted
@@ -255,7 +282,7 @@ namespace Stats
             sortSmallestFirst(rows, asc, [](const ConnectionMetadata& c) -> const QString& { return c.process; });
             break;
         case ByOutbound:
-            sortSmallestFirst(rows, asc, [](const ConnectionMetadata& c) -> const QString& { return c.outbound; });
+            sortSmallestFirst(rows, asc, [](const ConnectionMetadata& c) -> const QString& { return c.outboundName; });
             break;
         case ByProtocol:
             sortSmallestFirst(rows, asc, [](const ConnectionMetadata& c) -> const QString& { return c.protocol; });
@@ -266,7 +293,7 @@ namespace Stats
         }
 
         runOnUiThread([rows = std::move(rows)] {
-            if (auto* m = GetMainWindow()) m->UpdateConnectionList(rows);
+            if (auto* sink = CurrentStatsSink()) sink->onConnections(rows);
         });
     }
 

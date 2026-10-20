@@ -5,9 +5,10 @@
 
 #include <atomic>
 
-#include "3rdparty/qv2ray/v2/ui/QvAutoCompleteTextEdit.hpp"
+#include "include/engine/EditLocks.h"
 #include "include/global/Configs.hpp"
 #include "include/ui/setting/RouteItem.h"
+#include "include/ui/utils/ValidationForm.h"
 #include "ui_dialog_manage_routes.h"
 #include "include/database/entities/RouteProfile.h"
 
@@ -27,6 +28,11 @@ public:
 
 private:
     Ui::DialogManageRoutes *ui;
+
+    Validation::Form* form = nullptr;
+
+    Engine::EditLock settingsLock{Engine::EditTarget::Settings};
+    Engine::EditLock routesLock{Engine::EditTarget::Routes};
 
     RouteItem* routeChainWidget;
 
@@ -48,20 +54,19 @@ private:
 
     int tooltipID = 0;
 
-    void set_dns_hijack_enability(bool enable) const;
-
-    static bool validate_dns_rules(const QString &rawString);
-
     void show_predefined_dns_editor();
 
     void show_dns_advanced_editor();
 
     void show_dns_object_editor();
 
+    void generate_warp_config();
+
     struct DnsAdvancedDraft {
         int cache_capacity;
         bool disable_cache;
         bool disable_expire;
+        bool persist_cache;
         bool reverse_mapping;
         bool optimistic;
         QString optimistic_timeout;
@@ -75,8 +80,6 @@ private:
     QString dns_object_text;
 
     QShortcut* deleteShortcut;
-
-    AutoCompleteTextEdit* rule_editor;
 public slots:
     void accept() override;
 

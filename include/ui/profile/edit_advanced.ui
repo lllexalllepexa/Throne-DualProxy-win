@@ -15,6 +15,51 @@
   </property>
   <layout class="QGridLayout" name="gridLayout">
    <item row="0" column="0">
+    <widget class="QGroupBox" name="endpoint_box">
+     <property name="title">
+      <string>Server Address</string>
+     </property>
+     <layout class="QVBoxLayout" name="endpoint_layout">
+      <item>
+       <layout class="QHBoxLayout" name="endpoint_row" stretch="0,0,1">
+        <item>
+         <widget class="QComboBox" name="endpoint_mode"/>
+        </item>
+        <item>
+         <widget class="QComboBox" name="endpoint_list"/>
+        </item>
+        <item>
+         <spacer name="endpoint_spacer">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>0</width>
+            <height>0</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QLabel" name="endpoint_hint">
+        <property name="textFormat">
+         <enum>Qt::TextFormat::PlainText</enum>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+        <property name="colorRole" stdset="0">
+         <string notr="true">muted</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="1" column="0">
     <widget class="QGroupBox" name="dial_box">
      <property name="title">
       <string>Dial Fields</string>
@@ -52,6 +97,9 @@
         <property name="text">
          <string>Connect Timeout</string>
         </property>
+        <property name="buddy">
+         <cstring>connect_timeout</cstring>
+        </property>
        </widget>
       </item>
       <item row="1" column="1">
@@ -61,6 +109,9 @@
        <widget class="QLabel" name="label_bind_ifc">
         <property name="text">
          <string>Bind Interface</string>
+        </property>
+        <property name="buddy">
+         <cstring>bind_interface</cstring>
         </property>
        </widget>
       </item>
@@ -76,6 +127,9 @@
         <property name="text">
          <string>IPv4 Bind Address</string>
         </property>
+        <property name="buddy">
+         <cstring>inet4_bind_address</cstring>
+        </property>
        </widget>
       </item>
       <item row="2" column="1">
@@ -90,6 +144,9 @@
         <property name="text">
          <string>IPv6 Bind Address</string>
         </property>
+        <property name="buddy">
+         <cstring>inet6_bind_address</cstring>
+        </property>
        </widget>
       </item>
       <item row="2" column="3">
@@ -102,7 +159,7 @@
 </layout>
     </widget>
    </item>
-   <item row="3" column="0">
+   <item row="4" column="0">
     <widget class="QGroupBox" name="interface_box">
      <property name="title">
       <string>Interface</string>
@@ -125,6 +182,9 @@
         <property name="text">
          <string>Interface Name</string>
         </property>
+        <property name="buddy">
+         <cstring>interface_name</cstring>
+        </property>
        </widget>
       </item>
       <item row="1" column="1">
@@ -137,6 +197,9 @@
         </property>
         <property name="text">
          <string>UDP Timeout</string>
+        </property>
+        <property name="buddy">
+         <cstring>udp_timeout</cstring>
         </property>
        </widget>
       </item>
@@ -155,6 +218,9 @@
         <property name="text">
          <string>UDP Mapping</string>
         </property>
+        <property name="buddy">
+         <cstring>udp_mapping</cstring>
+        </property>
        </widget>
       </item>
       <item row="2" column="1">
@@ -167,6 +233,9 @@
         </property>
         <property name="text">
          <string>UDP Filtering</string>
+        </property>
+        <property name="buddy">
+         <cstring>udp_filtering</cstring>
         </property>
        </widget>
       </item>
@@ -181,6 +250,9 @@
         <property name="text">
          <string>UDP NAT Max</string>
         </property>
+        <property name="buddy">
+         <cstring>udp_nat_max</cstring>
+        </property>
        </widget>
       </item>
       <item row="3" column="1">
@@ -189,7 +261,7 @@
 </layout>
     </widget>
    </item>
-   <item row="4" column="0">
+   <item row="5" column="0">
     <widget class="QDialogButtonBox" name="buttonBox">
      <property name="orientation">
       <enum>Qt::Orientation::Horizontal</enum>
@@ -199,7 +271,7 @@
      </property>
     </widget>
    </item>
-   <item row="1" column="0">
+   <item row="2" column="0">
     <widget class="QGroupBox" name="tls_box">
      <property name="title">
       <string>TLS</string>
@@ -223,6 +295,9 @@
         <property name="text">
          <string>TLS Min Version</string>
         </property>
+        <property name="buddy">
+         <cstring>min_version</cstring>
+        </property>
        </widget>
       </item>
       <item row="1" column="1">
@@ -232,6 +307,9 @@
        <widget class="QLabel" name="label_7">
         <property name="text">
          <string>TLS Max Version</string>
+        </property>
+        <property name="buddy">
+         <cstring>max_version</cstring>
         </property>
        </widget>
       </item>
@@ -245,6 +323,9 @@
         </property>
         <property name="text">
          <string>TLS Spoof</string>
+        </property>
+        <property name="buddy">
+         <cstring>tls_spoof_state</cstring>
         </property>
        </widget>
       </item>
@@ -275,6 +356,9 @@
         <property name="text">
          <string>Spoof SNI</string>
         </property>
+        <property name="buddy">
+         <cstring>tls_spoof</cstring>
+        </property>
        </widget>
       </item>
       <item row="2" column="3">
@@ -295,6 +379,9 @@
         <property name="text">
          <string>Method</string>
         </property>
+        <property name="buddy">
+         <cstring>tls_spoof_method</cstring>
+        </property>
        </widget>
       </item>
       <item row="3" column="1">
@@ -306,17 +393,27 @@
          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;h4 style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;a name=&quot;query_server_name&quot;/&gt;&lt;span style=&quot; font-size:medium; font-weight:700;&quot;&gt;q&lt;/span&gt;&lt;span style=&quot; font-size:medium; font-weight:700;&quot;&gt;uery_server_name in sing-box&lt;/span&gt;&lt;/h4&gt;&lt;/body&gt;&lt;/html&gt;</string>
         </property>
         <property name="text">
-         <string>ECH Server Name</string>
+         <string>ECH Query Name / Resolver</string>
+        </property>
+        <property name="buddy">
+         <cstring>ech_server_name</cstring>
         </property>
        </widget>
       </item>
       <item row="3" column="3">
-       <widget class="QLineEdit" name="ech_server_name"/>
+       <widget class="QLineEdit" name="ech_server_name">
+        <property name="placeholderText">
+         <string>domain or domain+resolver</string>
+        </property>
+       </widget>
       </item>
       <item row="4" column="0">
        <widget class="QLabel" name="label_2">
         <property name="text">
          <string>ECH Config</string>
+        </property>
+        <property name="buddy">
+         <cstring>ech_config</cstring>
         </property>
        </widget>
       </item>
@@ -327,42 +424,74 @@
         </property>
        </widget>
       </item>
-      <item row="4" column="2">
+      <item row="5" column="0">
        <widget class="QLabel" name="label_3">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;SHA-256 of the server's whole certificate in base64, one per line (pcs in share links). A match replaces CA verification, so a self-signed certificate works.&lt;/p&gt;&lt;p&gt;Cannot be combined with a custom Certificate.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
         <property name="text">
          <string>Certificate SHA256</string>
         </property>
+        <property name="buddy">
+         <cstring>cert_sha256</cstring>
+        </property>
        </widget>
       </item>
-      <item row="4" column="3">
+      <item row="5" column="1">
        <widget class="QPushButton" name="cert_sha256">
         <property name="text">
          <string>Not Set</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="0">
+      <item row="5" column="2">
+       <widget class="QLabel" name="cert_public_key_sha256_l">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;SHA-256 of the server certificate's public key in base64, one per line. A match replaces CA verification and survives renewals that keep the key.&lt;/p&gt;&lt;p&gt;Cannot be combined with a custom Certificate.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="text">
+         <string>Public Key SHA256</string>
+        </property>
+        <property name="buddy">
+         <cstring>cert_public_key_sha256</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="3">
+       <widget class="QPushButton" name="cert_public_key_sha256">
+        <property name="text">
+         <string>Not Set</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="0">
        <widget class="QLabel" name="label_4">
         <property name="text">
          <string>Client Certificate</string>
         </property>
+        <property name="buddy">
+         <cstring>client_cert</cstring>
+        </property>
        </widget>
       </item>
-      <item row="5" column="1">
+      <item row="6" column="1">
        <widget class="QPushButton" name="client_cert">
         <property name="text">
          <string>Not Set</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="2">
+      <item row="6" column="2">
        <widget class="QLabel" name="label_5">
         <property name="text">
          <string>Client Key</string>
         </property>
+        <property name="buddy">
+         <cstring>client_key</cstring>
+        </property>
        </widget>
       </item>
-      <item row="5" column="3">
+      <item row="6" column="3">
        <widget class="QPushButton" name="client_key">
         <property name="text">
          <string>Not Set</string>
@@ -372,7 +501,7 @@
 </layout>
     </widget>
    </item>
-   <item row="2" column="0">
+   <item row="3" column="0">
     <widget class="QGroupBox" name="quic_box">
      <property name="title">
       <string>QUIC Parameters</string>
@@ -392,6 +521,9 @@
        <widget class="QLabel" name="quic_idle_timeout_l">
         <property name="text">
          <string>Idle Timeout</string>
+        </property>
+        <property name="buddy">
+         <cstring>quic_idle_timeout</cstring>
         </property>
        </widget>
       </item>
@@ -413,6 +545,9 @@
         <property name="text">
          <string>Keep Alive Period</string>
         </property>
+        <property name="buddy">
+         <cstring>quic_keep_alive_period</cstring>
+        </property>
        </widget>
       </item>
       <item row="1" column="3">
@@ -432,6 +567,9 @@
        <widget class="QLabel" name="quic_stream_receive_window_l">
         <property name="text">
          <string>Stream Receive Window</string>
+        </property>
+        <property name="buddy">
+         <cstring>quic_stream_receive_window</cstring>
         </property>
        </widget>
       </item>
@@ -453,6 +591,9 @@
         <property name="text">
          <string>Connection Receive Window</string>
         </property>
+        <property name="buddy">
+         <cstring>quic_connection_receive_window</cstring>
+        </property>
        </widget>
       </item>
       <item row="2" column="3">
@@ -473,6 +614,9 @@
         <property name="text">
          <string>Max Concurrent Streams</string>
         </property>
+        <property name="buddy">
+         <cstring>quic_max_concurrent_streams</cstring>
+        </property>
        </widget>
       </item>
       <item row="3" column="1">
@@ -490,6 +634,9 @@
         <property name="text">
          <string>Initial Packet Size</string>
         </property>
+        <property name="buddy">
+         <cstring>quic_initial_packet_size</cstring>
+        </property>
        </widget>
       </item>
       <item row="3" column="3">
@@ -506,6 +653,9 @@
        <widget class="QLabel" name="quic_disable_path_mtu_discovery_l">
         <property name="text">
          <string>Disable Path MTU Discovery</string>
+        </property>
+        <property name="buddy">
+         <cstring>quic_disable_path_mtu_discovery</cstring>
         </property>
        </widget>
       </item>
@@ -534,6 +684,8 @@
   </layout>
  </widget>
  <tabstops>
+  <tabstop>endpoint_mode</tabstop>
+  <tabstop>endpoint_list</tabstop>
   <tabstop>reuse_addr</tabstop>
   <tabstop>tcp_fast_open</tabstop>
   <tabstop>udp_fragment</tabstop>
@@ -552,6 +704,7 @@
   <tabstop>ech_server_name</tabstop>
   <tabstop>ech_config</tabstop>
   <tabstop>cert_sha256</tabstop>
+  <tabstop>cert_public_key_sha256</tabstop>
   <tabstop>client_cert</tabstop>
   <tabstop>client_key</tabstop>
   <tabstop>quic_idle_timeout</tabstop>

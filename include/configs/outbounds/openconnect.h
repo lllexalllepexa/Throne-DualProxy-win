@@ -133,8 +133,7 @@ namespace Configs
         // Throne-only, never sent to the core.
         int otp_profile_id = -1;
         bool only_advertised_routes = true;
-        bool use_tunnel_dns = true;
-        bool block_outside_dns = false;
+        QString tunnel_dns = kTunnelDnsPrefer;
 
         QString cookie;
         std::shared_ptr<OpenConnectToken> token = std::make_shared<OpenConnectToken>();
@@ -184,9 +183,38 @@ namespace Configs
         bool IsEndpoint() override;
         bool SupportsCredentialStrip() const override;
         void StripCredentials() override;
+        void StripForeignState(Validation::Issues& issues) override;
+        void Validate(Validation::Issues& issues) override;
+
+        // ComposeServer() leaves the port out, which means the HTTPS default, 443.
+        bool ServerPortOptional() override { return true; }
+
+        // A copy the editors can fill with unsaved input: the option objects they write are not shared with this one.
+        std::shared_ptr<openconnect> DetachedCopy() const;
 
         // The core takes a single HTTPS URL instead of server + server_port.
         QString ComposeServer();
         void SetServerUrl(const QString& url);
     };
+
+    namespace Checks {
+        QString OpenConnectServerPath(const QString& text);
+        // Warning: the core raises a smaller MTU to 576.
+        QString OpenConnectMtuFloor(const QString& text);
+        QString OpenConnectFingerprint(const QString& line);
+        QString OpenConnectReportedOs(const QString& flavor, const QString& os);
+        // Warning: the core raises a shorter interval to 2s.
+        QString OpenConnectDpdFloor(const QString& text);
+        QString OpenConnectCertificatePair(const QStringList& certificate, const QString& certificatePath,
+                                           const QStringList& key, const QString& keyPath);
+        QString OpenConnectFormEntry(const QString& formId, const QString& submissionKey, const QString& name,
+                                     const QString& value, bool promote);
+        QString OpenConnectToken(const openconnect& profile);
+        // Warning: token fields set without a mode.
+        QString OpenConnectTokenUnused(const openconnect& profile);
+        // Warning: only hotp tokens count.
+        QString OpenConnectTokenCounter(const openconnect& profile);
+        QString OpenConnectMobile(const openconnect& profile);
+        QString OpenConnectCompression(const openconnect& profile);
+    }
 }

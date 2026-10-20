@@ -51,22 +51,22 @@ namespace Qv2ray::ui {
         highlightingRules.append(rule);
         //
         debugFormat.setForeground(Qt::darkGray);
-        rule.pattern = QRegularExpression("D[Ee][Bb][Uu][Gg].*?");
+        rule.pattern = QRegularExpression(R"(\bD[Ee][Bb][Uu][Gg]\b)");
         rule.format = debugFormat;
         highlightingRules.append(rule);
         //
         infoFormat.setForeground(darkMode ? Qt::lightGray : Qt::darkCyan);
-        rule.pattern = QRegularExpression("I[Nn][Ff][Oo].*?");
+        rule.pattern = QRegularExpression(R"(\bI[Nn][Ff][Oo]\b)");
         rule.format = infoFormat;
         highlightingRules.append(rule);
         //
         warningFormat.setFontWeight(QFont::Bold);
         warningFormat2.setFontWeight(QFont::Bold);
-        rule.pattern = QRegularExpression("W[Aa][Rr][Nn].*?");
+        rule.pattern = QRegularExpression(R"(\bW[Aa][Rr][Nn]([Ii][Nn][Gg])?\b)");
         rule.format = warningFormat2;
         highlightingRules.append(rule);
         //
-        rule.pattern = QRegularExpression("E[Rr][Rr][Oo][Rr].*?");
+        rule.pattern = QRegularExpression(R"(\b[Ee][Rr][Rr][Oo][Rr]\b)");
         rule.format = rejectedFormat;
         highlightingRules.append(rule);
 
@@ -82,10 +82,6 @@ namespace Qv2ray::ui {
         //
         rule.pattern = QRegularExpression("<<<<+");
         rule.format = warningFormat;
-        highlightingRules.append(rule);
-        //
-        rule.pattern = QRegularExpression("error");
-        rule.format = rejectedFormat;
         highlightingRules.append(rule);
 
         {
@@ -112,6 +108,13 @@ namespace Qv2ray::ui {
             rule.format = tcpudpFormat;
             highlightingRules.append(rule);
         }
+
+        searchFormat.setBackground(darkMode ? QColor(150, 110, 0) : QColor(255, 225, 90));
+        searchFormat.setForeground(darkMode ? Qt::white : Qt::black);
+    }
+
+    void SyntaxHighlighter::setSearchPattern(const QRegularExpression &pattern) {
+        searchPattern = pattern;
     }
 
     void SyntaxHighlighter::highlightBlock(const QString &text) {
@@ -121,6 +124,15 @@ namespace Qv2ray::ui {
             while (matchIterator.hasNext()) {
                 QRegularExpressionMatch match = matchIterator.next();
                 setFormat(match.capturedStart(), match.capturedLength(), rule.format);
+            }
+        }
+
+        // Last, so search hits paint over the syntax colors.
+        if (!searchPattern.pattern().isEmpty()) {
+            QRegularExpressionMatchIterator matchIterator = searchPattern.globalMatch(text);
+            while (matchIterator.hasNext()) {
+                QRegularExpressionMatch match = matchIterator.next();
+                if (match.capturedLength() > 0) setFormat(match.capturedStart(), match.capturedLength(), searchFormat);
             }
         }
 

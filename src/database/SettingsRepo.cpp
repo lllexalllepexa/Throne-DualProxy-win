@@ -1,11 +1,13 @@
 #include "include/database/SettingsRepo.h"
 #include "NkrVersion.h"
+#include <QCoreApplication>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QDebug>
 #include <QUuid>
 
 #include "include/global/Utils.hpp"
+#include "include/global/Validation.hpp"
 
 namespace Configs {
     SettingsRepo::SettingsRepo(Database& database) : db(database) {
@@ -43,24 +45,24 @@ namespace Configs {
             {"vpn_auto_redirect",             &vpn_auto_redirect},
             {"vpn_l3_bridge",                 &vpn_l3_bridge},
             {"sub_clear",                     &sub_clear},
+            {"sub_respect_server_interval",   &sub_respect_server_interval},
             {"sub_show_change_popup",         &sub_show_change_popup},
             {"net_insecure",                  &net_insecure},
             {"sub_send_hwid",                 &sub_send_hwid},
             {"start_minimal",                 &start_minimal},
             {"enable_ntp",                    &enable_ntp},
-            {"enable_dns_server",             &enable_dns_server},
-            {"dns_server_listen_lan",         &dns_server_listen_lan},
-            {"enable_redirect",               &enable_redirect},
-            {"system_dns_set",                &system_dns_set},
             {"windows_set_admin",             &windows_set_admin},
             {"disable_win_admin",             &disable_run_admin},
             {"enable_stats",                  &enable_stats},
             {"disable_privilege_req",         &disable_privilege_req},
             {"enable_tun_routing",            &enable_tun_routing},
             {"use_mozilla_certs",             &use_mozilla_certs},
+            {"kill_switch",                   &kill_switch},
+            {"remote_api_enable",             &remote_api_enable},
+            {"remote_api_lan",                &remote_api_lan},
+            {"remote_api_admin_lan",          &remote_api_admin_lan},
             {"allow_beta_update",             &allow_beta_update},
             {"adblock_enable",                &adblock_enable},
-            {"show_system_dns",               &show_system_dns},
             {"use_custom_icons",              &use_custom_icons},
             {"follow_status_in_taskbar",           &follow_status_in_taskbar},
             {"xray_mux_default_on",           &xray_mux_default_on},
@@ -69,24 +71,30 @@ namespace Configs {
             {"show_config_security",          &show_config_security},
             {"log_enable_include",            &log_enable_include},
             {"log_enable_exclude",            &log_enable_exclude},
-            {"log_auto_scroll",               &log_auto_scroll},
             {"enable_warp",                   &enable_warp},
+            {"warp_tos_accepted",             &warp_tos_accepted},
             {"enable_dns_routing",            &enable_dns_routing},
             {"inbound_auth",                  &inbound_auth},
             {"allow_stopping_active_profile", &allow_stopping_active_profile},
             {"disable_mixed_inbound",         &disable_mixed_inbound},
             {"url_scheme_auto_register",      &url_scheme_auto_register},
+            {"file_assoc_auto_register",      &file_assoc_auto_register},
             {"system_proxy_enabled",          &remember_system_proxy},
             {"tun_mode_enabled",              &remember_tun},
             {"reset_proxy_on_disable_sp", &reset_proxy_on_disable_sp},
             {"dns_disable_cache", &dns_disable_cache},
             {"dns_disable_expire", &dns_disable_expire},
+            {"dns_persist_cache", &dns_persist_cache},
             {"dns_reverse_mapping", &dns_reverse_mapping},
             {"disable_private_range_bypass", &disable_private_range_bypass},
             {"dns_optimistic", &dns_optimistic},
             {"dns_use_hosts", &dns_use_hosts},
             {"dns_predefined_enable", &dns_predefined_enable},
             {"connection_sort_asc", &connection_sort_asc},
+            {"traffic_graph_smooth", &traffic_graph_smooth},
+            {"traffic_graph_markers", &traffic_graph_markers},
+            {"exit_country_lookup", &exit_country_lookup},
+            {"webdav_use_proxy", &webdav_use_proxy},
             {"enable_secondary_inbound", &enable_secondary_inbound},
         };
 
@@ -103,17 +111,21 @@ namespace Configs {
             {"language",               &language},
             {"font_size",              &font_size},
             {"max_log_line",           &max_log_line},
+            {"log_font_size",          &log_font_size},
             {"stats_tab",              &stats_tab},
+            {"traffic_graph_hidden_dirs", &traffic_graph_hidden_dirs},
+            {"traffic_graph_range",    &traffic_graph_range},
             {"connection_sort",        &connection_sort},
             {"traffic_stats_retention_days", &traffic_stats_retention_days},
             {"sub_auto_update",        &sub_auto_update},
+            {"sub_tls_version",        &sub_tls_version},
+            {"sub_http_version",       &sub_http_version},
             {"route_auto_update",      &route_auto_update},
             {"vpn_mtu",                &vpn_mtu},
             {"ntp_server_port",        &ntp_server_port},
-            {"dns_server_listen_port", &dns_server_listen_port},
-            {"redirect_listen_port",   &redirect_listen_port},
             {"core_box_clash_api",     &core_box_clash_api},
             {"core_box_api_port",      &core_box_api_port},
+            {"remote_api_port",        &remote_api_port},
             {"speed_test_mode",        &speed_test_mode},
             {"speed_test_timeout_ms",  &speed_test_timeout_ms},
             {"url_test_timeout_ms",    &url_test_timeout_ms},
@@ -124,11 +136,14 @@ namespace Configs {
             {"dns_cache_capacity", &dns_cache_capacity},
             {"h2_max_concurrent_streams", &h2_max_concurrent_streams},
             {"quic_initial_packet_size", &quic_initial_packet_size},
+            {"warp_masque_http_mode",  &warp_masque_http_mode},
         };
 
         stringMap = {
             {"user_agent2",                &user_agent},
             {"test_url",                   &test_latency_url},
+            {"direct_test_url",            &direct_test_url},
+            {"exit_lookup_provider",       &exit_lookup_provider},
             {"inbound_address",            &inbound_address},
             {"log_level",                  &log_level},
             {"log_file_level",             &log_file_level},
@@ -146,14 +161,24 @@ namespace Configs {
             {"custom_inbound",             &custom_inbound},
             {"custom_route",               &custom_route_global},
             {"font",                       &font},
+            {"log_font_family",            &log_font_family},
             {"hk_mw",                      &hotkey_mainwindow},
             {"hk_group",                   &hotkey_group},
             {"hk_route",                   &hotkey_route},
             {"hk_spmenu",                  &hotkey_system_proxy_menu},
             {"hk_toggle",                  &hotkey_toggle_system_proxy},
+            {"hk_startstop",               &hotkey_toggle_connection},
+            {"hk_tun",                     &hotkey_toggle_tun},
+            {"remote_api_key",             &remote_api_key},
+            {"remote_api_allow",           &remote_api_allow},
+            {"webdav_server",              &webdav_server},
+            {"webdav_user",                &webdav_user},
+            {"webdav_pass",                &webdav_pass},
+            {"webdav_path",                &webdav_path},
+            {"device_id",                  &device_id},
+            {"device_name",                &device_name},
             {"active_routing",             &active_routing},
             {"mw_size",                    &mw_size},
-            {"vpn_impl",                   &vpn_implementation},
             {"vpn_tun_ipv4_cidr",          &vpn_tun_ipv4_cidr},
             {"vpn_tun_ipv6_cidr",          &vpn_tun_ipv6_cidr},
             {"sub_custom_hwid_params",     &sub_custom_hwid_params},
@@ -166,9 +191,6 @@ namespace Configs {
             {"ntp_server_address",         &ntp_server_address},
             {"ntp_interval",               &ntp_interval},
             {"ntp_outbound",               &ntp_outbound},
-            {"dns_v4_resp",                &dns_v4_resp},
-            {"dns_v6_resp",                &dns_v6_resp},
-            {"redirect_listen_address",    &redirect_listen_address},
             {"proxy_scheme",               &proxy_scheme},
             {"main_window_geometry",       &mainWindowGeometry},
             {"xray_log_level",             &xray_log_level},
@@ -186,25 +208,37 @@ namespace Configs {
             {"warp_private_key",           &warp_private_key},
             {"warp_public_key",            &warp_public_key},
             {"warp_ep",                    &warp_ep},
+            {"warp_mode",                  &warp_mode},
+            {"warp_masque_private_key",    &warp_masque_private_key},
+            {"warp_masque_peer_public_key", &warp_masque_peer_public_key},
+            {"warp_masque_ep",             &warp_masque_ep},
+            {"warp_masque_sni",            &warp_masque_sni},
             {"inbound_user",               &inbound_user},
             {"inbound_pass",               &inbound_pass},
             {"url_scheme_mirror",          &url_scheme_mirror},
+            {"file_assoc_mirror",          &file_assoc_mirror},
         };
 
         stringListMap = {
-            {"dns_server_rules",         &dns_server_rules},
             {"dns_predefined_rules",     &dns_predefined_rules},
+            {"remote_dns_history",       &remote_dns_history},
+            {"direct_dns_history",       &direct_dns_history},
             {"extra_core_paths",         &extraCorePaths},
             {"log_include_keyword",      &log_include_keyword},
             {"log_include_regex",        &log_include_regex},
             {"log_exclude_keyword",      &log_exclude_keyword},
             {"log_exclude_regex",        &log_exclude_regex},
+            {"traffic_graph_hidden",     &traffic_graph_hidden},
             {"warp_ifc_addrs",           &warp_ifc_addrs},
             {"vpn_private_ranges",       &vpn_private_ranges},
+            {"xray_geoip_url_history",   &xray_geoip_url_history},
+            {"xray_geosite_url_history", &xray_geosite_url_history},
             {"dial_bind_ifc_history",    &dial_bind_interface_history},
             {"dial_inet4_bind_history",  &dial_inet4_bind_address_history},
             {"dial_inet6_bind_history",  &dial_inet6_bind_address_history},
             {"warp_reserved", &warp_reserved},
+            {"warp_masque_ifc_addrs", &warp_masque_ifc_addrs},
+            {"warp_api_hosts", &warp_api_hosts},
         };
     }
 
@@ -250,10 +284,6 @@ namespace Configs {
                 remote_dns_disable_ipv6 = str == "ipv4_only";
                 continue;
             }
-            if (key == "sub_auto_update_last") {
-                sub_auto_update_last = str.toLongLong();
-                continue;
-            }
             if (key == "route_auto_update_last") {
                 route_auto_update_last = str.toLongLong();
                 continue;
@@ -284,15 +314,23 @@ namespace Configs {
                 continue;
             }
         }
-        // Nothing writes these back, so drop them or they keep overriding the migrated flags on every load.
-        db.exec("DELETE FROM settings WHERE key IN ('direct_dns_strategy', 'remote_dns_strategy')");
+        // Builds before 1.2.1 saved the translated interval label ("5 мин.", "۱۰ دقیقه"), which the core rejects.
+        if (!Validation::Duration(ntp_interval).isEmpty()) {
+            QString minutes;
+            for (const QChar c : ntp_interval) {
+                if (c.digitValue() >= 0) minutes += QChar(u'0' + c.digitValue());
+            }
+            ntp_interval = minutes.isEmpty() ? QStringLiteral("30m") : minutes + u'm';
+        }
+        // Retired keys nothing writes back; the DNS ones would otherwise keep overriding the migrated flags on every load.
+        db.exec("DELETE FROM settings WHERE key IN ('direct_dns_strategy', 'remote_dns_strategy', 'log_auto_scroll')");
     }
 
     void SettingsRepo::saveAllSettings() const {
         if (noSave) return;
 
         std::vector<std::pair<std::string, std::string>> keyValues;
-        keyValues.reserve(boolMap.size() + intMap.size() + stringMap.size() + stringListMap.size() + 4);
+        keyValues.reserve(boolMap.size() + intMap.size() + stringMap.size() + stringListMap.size() + 3);
 
         const auto addPair = [&keyValues](const QString& key, const auto& value) {
             keyValues.emplace_back(key.toStdString(), value);
@@ -321,9 +359,7 @@ namespace Configs {
         addPair(QStringLiteral("xray_vless_preference"),
             std::to_string(static_cast<int>(xray_vless_preference)));
 
-        // qint64 timestamps: out of range for the int map, so persisted here.
-        addPair(QStringLiteral("sub_auto_update_last"),
-            std::to_string(sub_auto_update_last));
+        // qint64 timestamp: out of range for the int map, so persisted here.
         addPair(QStringLiteral("route_auto_update_last"),
             std::to_string(route_auto_update_last));
 
@@ -333,7 +369,26 @@ namespace Configs {
     void SettingsRepo::UpdateStartedId(int id) {
         started_id = id;
         remember_id = id;
+        // Dual Proxy: unlike remember_id, a manual stop keeps the primary, so the next start picks it again.
+        if (id >= 0) primary_profile_id = id;
         Save();
+    }
+
+    void SettingsRepo::ClearSecondaryProxy() {
+        enable_secondary_inbound = false;
+        secondary_profile_id = NoProfileId;
+        Save();
+    }
+
+    QString SettingsRepo::SecondaryPortConflict(int port) const {
+        if (port < 1024 || port > 65535) return QCoreApplication::translate("DualProxy", "Use a port from 1024 to 65535.");
+        // As the settings form judges it: turning the mixed inbound back on is refused there while the ports collide.
+        if (!disable_mixed_inbound && port == inbound_socks_port) return QCoreApplication::translate("DualProxy", "Port %1 is used by the primary proxy.").arg(port);
+        if (port == core_dns_in_port) return QCoreApplication::translate("DualProxy", "Port %1 is used by the core DNS inbound.").arg(port);
+        if (core_box_clash_api > 0 && port == core_box_clash_api) return QCoreApplication::translate("DualProxy", "Port %1 is used by the Clash API.").arg(port);
+        if (core_box_api_port > 0 && port == core_box_api_port) return QCoreApplication::translate("DualProxy", "Port %1 is used by the dashboard API.").arg(port);
+        if (remote_api_enable && port == remote_api_port) return QCoreApplication::translate("DualProxy", "Port %1 is used by the remote API.").arg(port);
+        return {};
     }
 
     static QStringView SubStrBefore(QStringView str, QStringView sub) {
